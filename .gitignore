@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Systèmes
+.DS_Store
+Thumbs.db
+
+# Spotify / Secrets
+.cache
+.cache*
+.spotify_cache*
+
+# Données runtime
+trip.json
+trail.json
+*.log
+
+# Binaires de build
+*.bin
+*.elf
+*.map
+bin/

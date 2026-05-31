@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morioo MMS</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { background-color: #0d0802; color: #ffeedd; font-family: 'Courier New', monospace; margin: 0; padding: 8px; overflow: hidden; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; }
+
+        /* Layout principal : Carte à droite, Écrans de contrôle à gauche */
+        .main-container { display: grid; grid-template-columns: 1.1fr 1.1fr; gap: 12px; flex: 1; min-height: 0; }
+        .left-panel { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+
+        /* Optimisation de la taille des Jauges */
+        .gauges-container { display: flex; justify-content: space-around; align-items: center; background-color: #160e05; border: 3px solid #8e6f43; border-radius: 14px; padding: 15px 5px; flex: 1; min-height: 0; box-shadow: inset 0 0 20px rgba(0,0,0,0.9); }
+        .gauge-box { text-align: center; font-weight: bold; color: #d4a373; font-size: 1.1em; width: 32%; }
+        canvas { display: block; margin: 0 auto; max-width: 100%; max-height: 100%; }
+
+        .lights-container { display: flex; gap: 10px; width: 100%; }
+
+        .odo-container { display: flex; align-items: center; gap: 8px; background-color: #160e05; border: 3px solid #8e6f43; border-radius: 10px; padding: 10px 14px; width: 100%; box-sizing: border-box; }
+        .odo-label { color: #8e6f43; font-size: 0.75em; text-transform: uppercase; margin-bottom: 2px; }
+        .odo-value { color: #fff; font-size: 1.2em; font-weight: bold; }
+        .odo-block { flex: 1; text-align: center; border-right: 1px solid #3d2510; }
+        .odo-block:last-of-type { border-right: none; }
+        .btn-reset { background-color: #3d1010; color: #ffeedd; border: 2px solid #8e4343; padding: 8px 14px; font-size: 0.85em; border-radius: 8px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        .btn-reset:active { background-color: #8e4343; }
+
+        /* Gros boutons pour les phares */
+        .btn-toggle { background-color: #5c1d06; color: #ffeedd; border: 3px solid #8e6f43; padding: 18px; font-size: 1.1em; border-radius: 10px; cursor: pointer; font-weight: bold; flex: 1; text-transform: uppercase; box-shadow: 0 4px 6px rgba(0,0,0,0.4); }
+        .btn-toggle.active { background-color: #2b5c06; box-shadow: 0 0 15px #38b000; }
+        /* Style spécifique pour différencier les lumières sous l'eau (Bleu Boesch) */
+        .btn-toggle.underwater-btn.active { background-color: #005f73; box-shadow: 0 0 15px #0a9396; }
+
+        /* Carte plein écran */
+        #map { width: 100%; height: 100%; border: 3px solid #8e6f43; border-radius: 14px; background-color: #0c1117; }
+
+        /* BANDEAU AUDIO XXL TOUT EN BAS */
+        .bottom-audio-bar { display: grid; grid-template-columns: 1.2fr 1.5fr 1fr; gap: 15px; height: 18vh; flex-shrink: 0; background-color: #1e1206; border: 3px solid #8e6f43; border-radius: 14px; padding: 10px; box-sizing: border-box; align-items: center; }
+        .track-info { font-size: 1.4em; color: #fff; font-weight: bold; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-right: 1px solid #3d2510; }
+        .audio-controls { display: flex; justify-content: space-between; gap: 10px; }
+        .btn-audio { background-color: #3d2510; color: #d4a373; border: 2px solid #8e6f43; padding: 15px 0; font-size: 1.8em; border-radius: 10px; cursor: pointer; flex: 1; display: flex; justify-content: center; align-items: center; }
+        .btn-audio:active { background-color: #d4a373; color: #221407; }
+        .playlists { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: 100%; align-content: center; }
+        .btn-pl { background-color: #0d0802; color: #d4a373; border: 2px solid #8e6f43; padding: 8px 4px; font-size: 0.85em; border-radius: 6px; font-weight: bold; text-align: center; cursor: pointer; }
+
+        #top-bar { display: flex; justify-content: space-between; align-items: center; height: 4vh; flex-shrink: 0; padding: 0 10px; }
+        #title { font-size: 1.4em; color: #d4a373; font-weight: bold; }
+        #clock { font-size: 1.6em; color: #8e6f43; font-weight: bold; letter-spacing: 2px; }
+        #gps-indicator { font-size: 0.8em; font-weight: bold; padding: 3px 10px; border-radius: 6px; border: 1px solid #3d2510; }
+        #gps-indicator.fix { color: #38b000; border-color: #38b000; }
+        #gps-indicator.nofix { color: #8e6f43; border-color: #3d2510; }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <div id="title">BOESCH 510</div>
+        <div id="gps-indicator" class="nofix">🛰 NO FIX</div>
+        <div id="clock">00:00:00</div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="gauges-container">
+                <div class="gauge-box">
+                    <canvas id="gauge-vitesse" width="220" height="220"></canvas>
+                    <div>VITESSE (km/h)</div>
+                </div>
+                <div class="gauge-box">
+                    <canvas id="gauge-profondeur" width="220" height="220"></canvas>
+                    <div>PROFONDEUR (m)</div>
+                </div>
+                <div class="gauge-box">
+                    <canvas id="gauge-batterie" width="220" height="220"></canvas>
+                    <div>BATTERIE (V)</div>
+                </div>
+            </div>
+            
+            <div class="lights-container">
+                <button id="btn-lights" class="btn-toggle" onclick="toggleSwitch('feux_navigation')">FEUX NAV : OFF</button>
+                <button id="btn-underwater" class="btn-toggle underwater-btn" onclick="toggleSwitch('lumieres_sous_marines')">LUMIÈRES EAU : OFF</button>
+            </div>
+
+            <div class="odo-container">
+                <div class="odo-block">
+                    <div class="odo-label">Distance</div>
+                    <div class="odo-value" id="odo-km">0.00 km</div>
+                </div>
+                <div class="odo-block">
+                    <div class="odo-label">Nautiques</div>
+                    <div class="odo-value" id="odo-nm">0.00 nm</div>
+                </div>
+                <div class="odo-block">
+                    <div class="odo-label">Temps nav.</div>
+                    <div class="odo-value" id="odo-temps">0h 00m</div>
+                </div>
+                <button class="btn-reset" onclick="resetTrip()">RESET</button>
+            </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <div class="bottom-audio-bar">
+        <div class="track-info" id="track-title">Spotify Déconnecté</div>
+        <div class="audio-controls">
+            <button class="btn-audio" onclick="spotifyAction('previous')">⏮</button>
+            <button class="btn-audio" onclick="spotifyAction('play')">▶</button>
+            <button class="btn-audio" onclick="spotifyAction('pause')">⏸</button>
+            <button class="btn-audio" onclick="spotifyAction('next')">⏭</button>
+        </div>
+        <div class="playlists">
+            <button class="btn-pl" onclick="playPlaylist('37i9dQZF1DX4sWSpwq3LiO')">☕ Cruise Chill</button>
+            <button class="btn-pl" onclick="playPlaylist('37i9dQZF1DX10zKzsJ2jva')">⚡ V8 Power</button>
+            <button class="btn-pl" onclick="playPlaylist('37i9dQZF1DXDbimmehT9kj')">🌊 Boat Vibes</button>
+            <button class="btn-pl" onclick="playPlaylist('37i9dQZF1DX4dyzvuaRJ0n')">🎸 Rock Classics</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
+
+        // --- CARTE MAP ---
+        var map = L.map('map', {zoomControl: false}).setView([50.4901, 5.1002], 17);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
+
+        var boatMarker = L.circleMarker([50.4901, 5.1002], {
+            color: '#ff4500', fillColor: '#ff4500', fillOpacity: 1, radius: 9
+        }).addTo(map);
+
+        var trailLine = L.polyline([], {
+            color: '#ff4500', weight: 2, opacity: 0.5
+        }).addTo(map);
+
+        // --- DESSIN DES JAUGES RÉTRO EN GRAND ---
+        function drawGauge(canvasId, value, minVal, maxVal, colorNeedle) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const radius = canvas.width * 0.44;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Fond noir du cadran
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = '#050301';
+            ctx.fill();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#8e6f43';
+            ctx.stroke();
+
+            // Graduations
+            const startAngle = 0.75 * Math.PI;
+            const endAngle = 2.25 * Math.PI;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius - 14, startAngle, endAngle);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#d4a373';
+            ctx.stroke();
+
+            // Repères chiffrés plus gros
+            ctx.fillStyle = '#aa8259';
+            ctx.font = 'bold 16px Courier New';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(minVal, cx - radius + 32, cy + radius - 32);
+            ctx.fillText(maxVal, cx + radius - 32, cy + radius - 32);
+
+            // Grosse valeur numérique centrale
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 36px Courier New';
+            ctx.fillText(value.toFixed(1), cx, cy + 10);
+
+            // Calcul et dessin de l'Aiguille épaissie
+            const percent = (value - minVal) / (maxVal - minVal);
+            const needleAngle = startAngle + percent * (endAngle - startAngle);
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(needleAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 6);
+            ctx.lineTo(radius - 18, 0);
+            ctx.lineTo(0, -6);
+            ctx.fillStyle = colorNeedle;
+            ctx.fill();
+            ctx.restore();
+
+            // Cache-moyeu central plus gros
+            ctx.beginPath();
+            ctx.arc(cx, cy, 11, 0, 2 * Math.PI);
+            ctx.fillStyle = '#8e6f43';
+            ctx.fill();
+        }
+
+        // --- REFRESH STATUS (1s) ---
+        async function refreshData() {
+            try {
+                let data = await fetch('/api/status').then(r => r.json());
+                let vitesseKmh = data.vitesse * 1.852;
+
+                drawGauge('gauge-vitesse', vitesseKmh, 0, 50, '#ff4500');
+                drawGauge('gauge-profondeur', data.profondeur, 0, 10, '#00bfff');
+                drawGauge('gauge-batterie', data.batterie, 10, 15, batteryColor(data.batterie));
+
+                document.getElementById('track-title').innerText = data.music_artist ? `${data.music_title} - ${data.music_artist}` : data.music_title;
+
+                if (data.lat && data.lon) {
+                    var newPos = [data.lat, data.lon];
+                    boatMarker.setLatLng(newPos);
+                    map.panTo(newPos, 17);
+                }
+
+                let gpsEl = document.getElementById('gps-indicator');
+                if (data.gps_fix) {
+                    gpsEl.textContent = '🛰 GPS FIX';
+                    gpsEl.className = 'fix';
+                } else {
+                    gpsEl.textContent = '🛰 NO FIX';
+                    gpsEl.className = 'nofix';
+                }
+
+                if (data.trip) {
+                    document.getElementById('odo-km').innerText    = data.trip.km.toFixed(2) + ' km';
+                    document.getElementById('odo-nm').innerText    = data.trip.nm.toFixed(2) + ' nm';
+                    let s = data.trip.secondes;
+                    let h = Math.floor(s / 3600);
+                    let m = Math.floor((s % 3600) / 60);
+                    document.getElementById('odo-temps').innerText = h + 'h ' + String(m).padStart(2, '0') + 'm';
+                }
+
+                let btnNav = document.getElementById('btn-lights');
+                if(data.feux_navigation) { btnNav.innerText = "FEUX NAV : ON"; btnNav.classList.add('active'); }
+                else { btnNav.innerText = "FEUX NAV : OFF"; btnNav.classList.remove('active'); }
+
+                let btnUnder = document.getElementById('btn-underwater');
+                if(data.lumieres_sous_marines) { btnUnder.innerText = "LUMIÈRES EAU : ON"; btnUnder.classList.add('active'); }
+                else { btnUnder.innerText = "LUMIÈRES EAU : OFF"; btnUnder.classList.remove('active'); }
+
+            } catch (e) {}
+        }
+
+        // --- REFRESH TRACE (5s) ---
+        async function refreshTrail() {
+            try {
+                let trail = await fetch('/api/trail').then(r => r.json());
+                trailLine.setLatLngs(trail);
+            } catch (e) {}
+        }
+
+        function batteryColor(v) {
+            if (v >= 12.6) return '#38b000';   // Pleine — vert
+            if (v >= 12.0) return '#f4a100';   // Moyenne — orange
+            return '#e63946';                   // Basse — rouge
+        }
+
+        drawGauge('gauge-vitesse', 0, 0, 50, '#ff4500');
+        drawGauge('gauge-profondeur', 0, 0, 10, '#00bfff');
+        drawGauge('gauge-batterie', 12.0, 10, 15, '#38b000');
+
+        setInterval(refreshData, 1000);
+        setInterval(refreshTrail, 5000);
+        refreshTrail();
+
+        // --- ENVOI DES ACTIONS ---
+        const _switchLock = {};
+        async function toggleSwitch(device) {
+            if (_switchLock[device]) return;
+            _switchLock[device] = true;
+            await fetch(`/api/switch/${device}`, { method: 'POST' });
+            refreshData();
+            setTimeout(() => { _switchLock[device] = false; }, 800);
+        }
+        async function resetTrip() {
+            await fetch('/api/trip/reset', { method: 'POST' });
+            refreshData();
+        }
+        let _spotifyLock = false;
+        async function spotifyAction(action) {
+            if (_spotifyLock) return;
+            _spotifyLock = true;
+            const btn = event.currentTarget;
+            btn.style.opacity = '0.4';
+            await fetch(`/api/spotify/${action}`, { method: 'POST' });
+            setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
+        }
+        async function playPlaylist(id) {
+            if (_spotifyLock) return;
+            _spotifyLock = true;
+            const btn = event.currentTarget;
+            btn.style.opacity = '0.4';
+            await fetch(`/api/spotify/playlist?playlist_id=${id}`, { method: 'POST' });
+            setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,400 @@
+import asyncio
+import random
+import uvicorn
+import serial
+import json
+import math
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+
+from dotenv import load_dotenv
+import os
+load_dotenv(Path(__file__).parent / ".env")
+
+CLIENT_ID     = os.getenv("SPOTIFY_CLIENT_ID", "")
+CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+REDIRECT_URI  = "http://127.0.0.1:8000/callback"
+SCOPE         = "user-modify-playback-state user-read-playback-state"
+REFRESH_TOKEN = os.getenv("SPOTIFY_REFRESH_TOKEN", "")
+
+sp_oauth = SpotifyOAuth(
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    redirect_uri=REDIRECT_URI,
+    scope=SCOPE,
+    cache_path="/home/ode/boesch_os/.cache",
+    open_browser=False,
+    requests_timeout=5,   # évite les hangs réseau
+)
+
+# Cache du token en mémoire — refresh seulement quand expiré (~1×/heure)
+_spotify_token_info = None
+
+def get_spotify_client_sync():
+    """Retourne un client Spotipy prêt à l'emploi, ou None si impossible."""
+    global _spotify_token_info, REFRESH_TOKEN
+    if not REFRESH_TOKEN:
+        return None
+    try:
+        if not _spotify_token_info or sp_oauth.is_token_expired(_spotify_token_info):
+            _spotify_token_info = sp_oauth.refresh_access_token(REFRESH_TOKEN)
+            # Sauvegarde le nouveau refresh_token s'il a changé
+            new_rt = _spotify_token_info.get("refresh_token")
+            if new_rt and new_rt != REFRESH_TOKEN:
+                REFRESH_TOKEN = new_rt
+                env_path = Path("/home/ode/boesch_os/.env")
+                lines = env_path.read_text().splitlines()
+                lines = [l for l in lines if not l.startswith("SPOTIFY_REFRESH_TOKEN")]
+                lines.append(f"SPOTIFY_REFRESH_TOKEN={new_rt}")
+                env_path.write_text("\n".join(lines) + "\n")
+        return spotipy.Spotify(auth=_spotify_token_info["access_token"])
+    except Exception:
+        return None
+
+async def get_spotify_client():
+    """Version async : exécute get_spotify_client_sync dans un thread avec timeout."""
+    try:
+        loop = asyncio.get_event_loop()
+        return await asyncio.wait_for(
+            loop.run_in_executor(None, get_spotify_client_sync),
+            timeout=6.0
+        )
+    except Exception:
+        return None
+
+arduino    = None
+gps_serial = None
+gps_has_fix = False
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global arduino, gps_serial
+    # --- Wemos D1 Mini (relais USB) ---
+    try:
+        arduino = serial.Serial(
+            port='/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0',
+            baudrate=115200, timeout=1
+        )
+        await asyncio.sleep(2)
+        print("🚀 Connecté au Wemos D1 Mini !")
+    except Exception as e:
+        print(f"⚠️ Wemos non connecté : {e} — mode virtuel.")
+        arduino = None
+    # --- GPS u-blox ---
+    try:
+        gps_serial = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout=1)
+        print("🛰️ GPS u-blox connecté sur /dev/ttyACM0")
+    except Exception as e:
+        print(f"⚠️ GPS non connecté : {e} — position simulée.")
+        gps_serial = None
+    asyncio.create_task(read_gps())
+    asyncio.create_task(simulate_boat_and_spotify())
+    yield
+    if arduino:
+        arduino.close()
+    if gps_serial:
+        gps_serial.close()
+
+app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+TRIP_FILE = Path("/home/ode/boesch_os/trip.json")
+
+def load_trip():
+    if TRIP_FILE.exists():
+        try:
+            return json.loads(TRIP_FILE.read_text())
+        except Exception:
+            pass
+    return {"km": 0.0, "nm": 0.0, "secondes": 0}
+
+def save_trip():
+    TRIP_FILE.write_text(json.dumps(trip_data))
+
+trip_data = load_trip()
+
+TRAIL_FILE = Path("/home/ode/boesch_os/trail.json")
+
+def load_trail():
+    if TRAIL_FILE.exists():
+        try:
+            return json.loads(TRAIL_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+def save_trail():
+    TRAIL_FILE.write_text(json.dumps(trail))
+
+# --- Simulation fallback (utilisée quand GPS absent) ---
+MEUSE_ROUTE = [
+    (50.4833, 5.0701),  # Sclayn ouest
+    (50.4851, 5.0780),
+    (50.4872, 5.0860),
+    (50.4890, 5.0940),
+    (50.4901, 5.1002),  # Andenne centre
+    (50.4908, 5.1080),
+    (50.4912, 5.1160),
+    (50.4905, 5.1240),
+    (50.4891, 5.1320),
+    (50.4872, 5.1400),
+    (50.4858, 5.1480),  # Namêche est
+]
+
+def _haversine_km(p1, p2):
+    lat1, lon1 = math.radians(p1[0]), math.radians(p1[1])
+    lat2, lon2 = math.radians(p2[0]), math.radians(p2[1])
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
+    return 6371 * 2 * math.asin(math.sqrt(a))
+
+_SEG_DIST   = [_haversine_km(MEUSE_ROUTE[i], MEUSE_ROUTE[i+1]) for i in range(len(MEUSE_ROUTE)-1)]
+_TOTAL_DIST = sum(_SEG_DIST)
+
+def _pos_at_km(km):
+    km = max(0.0, min(km, _TOTAL_DIST))
+    acc = 0.0
+    for i, seg in enumerate(_SEG_DIST):
+        if acc + seg >= km:
+            t = (km - acc) / seg if seg > 0 else 0
+            lat = MEUSE_ROUTE[i][0] + t * (MEUSE_ROUTE[i+1][0] - MEUSE_ROUTE[i][0])
+            lon = MEUSE_ROUTE[i][1] + t * (MEUSE_ROUTE[i+1][1] - MEUSE_ROUTE[i][1])
+            return round(lat, 6), round(lon, 6)
+        acc += seg
+    return MEUSE_ROUTE[-1]
+
+_route_km  = 0.0
+_route_dir = 1
+
+# Trace GPS (max 600 points ≈ 10 min)
+trail = load_trail()
+
+boat_data = {
+    "vitesse": 0.0,
+    "profondeur": 5.0,
+    "feux_navigation": False,
+    "lumieres_sous_marines": False,
+    "music_title": "Spotify Déconnecté",
+    "music_artist": "",
+    "lat": MEUSE_ROUTE[0][0],
+    "lon": MEUSE_ROUTE[0][1],
+    "batterie": 12.6,
+    "gps_fix": False,
+}
+
+# ---------------------------------------------------------------------------
+# Tâche GPS : lit les trames NMEA $GPRMC en continu
+# ---------------------------------------------------------------------------
+def _parse_nmea_coord(raw, direction):
+    """Convertit 'DDDMM.MMMMM' + 'N/S/E/W' en degrés décimaux."""
+    if not raw:
+        return None
+    dot = raw.index('.')
+    degrees = int(raw[:dot - 2])
+    minutes = float(raw[dot - 2:])
+    val = degrees + minutes / 60.0
+    if direction in ('S', 'W'):
+        val = -val
+    return round(val, 6)
+
+async def read_gps():
+    global gps_has_fix
+    loop = asyncio.get_event_loop()
+    while True:
+        if not gps_serial:
+            await asyncio.sleep(5)
+            continue
+        try:
+            raw = await loop.run_in_executor(None, gps_serial.readline)
+            line = raw.decode('ascii', errors='ignore').strip()
+            if not line.startswith('$GPRMC'):
+                continue
+            parts = line.split(',')
+            # $GPRMC,hhmmss.ss,A,llll.ll,a,yyyyy.yy,a,x.x,x.x,ddmmyy,...
+            if len(parts) < 8:
+                continue
+            status = parts[2]   # A = fix valide, V = invalide
+            if status != 'A':
+                gps_has_fix = False
+                boat_data["gps_fix"] = False
+                continue
+            lat = _parse_nmea_coord(parts[3], parts[4])
+            lon = _parse_nmea_coord(parts[5], parts[6])
+            speed_knots = float(parts[7]) if parts[7] else 0.0
+            if lat is not None and lon is not None:
+                boat_data["lat"]     = lat
+                boat_data["lon"]     = lon
+                boat_data["vitesse"] = round(speed_knots, 1)
+                boat_data["gps_fix"] = True
+                gps_has_fix = True
+        except Exception:
+            await asyncio.sleep(1)
+
+# ---------------------------------------------------------------------------
+# Boucle principale : profondeur/batterie simulées + ODO + Spotify
+# ---------------------------------------------------------------------------
+async def simulate_boat_and_spotify():
+    global _route_km, _route_dir
+    save_counter    = 0
+    spotify_counter = 0
+    while True:
+        # Profondeur et batterie : toujours simulées (pas de capteur réel)
+        boat_data["profondeur"] = round(random.uniform(2.0, 8.0), 1)
+        boat_data["batterie"]   = round(random.uniform(12.4, 13.1), 2)
+
+        # Si pas de GPS → simulation position sur la Meuse
+        if not gps_has_fix:
+            sim_speed_knots = round(random.uniform(15.0, 22.0), 1)
+            boat_data["vitesse"] = sim_speed_knots
+            vitesse_kmh = sim_speed_knots * 1.852
+            _route_km += (vitesse_kmh / 3600) * _route_dir
+            if _route_km >= _TOTAL_DIST:
+                _route_km  = _TOTAL_DIST
+                _route_dir = -1
+            elif _route_km <= 0.0:
+                _route_km  = 0.0
+                _route_dir = 1
+            boat_data["lat"], boat_data["lon"] = _pos_at_km(_route_km)
+        else:
+            vitesse_kmh = boat_data["vitesse"] * 1.852
+
+        # Trace
+        trail.append([boat_data["lat"], boat_data["lon"]])
+        if len(trail) > 600:
+            trail.pop(0)
+
+        # ODO : incrémente seulement si vitesse > 1 km/h
+        if vitesse_kmh > 1.0:
+            trip_data["km"]       = round(trip_data["km"] + vitesse_kmh / 3600, 4)
+            trip_data["nm"]       = round(trip_data["nm"] + boat_data["vitesse"] / 3600, 4)
+            trip_data["secondes"] += 1
+
+        # Sauvegarde toutes les 30 secondes
+        save_counter += 1
+        if save_counter >= 30:
+            save_trip()
+            save_trail()
+            save_counter = 0
+
+        # Polling Spotify toutes les 10 secondes
+        spotify_counter += 1
+        if spotify_counter >= 10:
+            spotify_counter = 0
+            sp_client = await get_spotify_client()
+            if sp_client:
+                try:
+                    current = sp_client.current_playback()
+                    if current and current['item']:
+                        boat_data["music_title"]  = current['item']['name']
+                        boat_data["music_artist"] = current['item']['artists'][0]['name']
+                    else:
+                        boat_data["music_title"]  = "Pas de lecture en cours"
+                        boat_data["music_artist"] = ""
+                except Exception:
+                    boat_data["music_title"]  = "Erreur de lecture"
+                    boat_data["music_artist"] = ""
+            else:
+                boat_data["music_title"]  = "En attente de connexion..."
+                boat_data["music_artist"] = ""
+
+        await asyncio.sleep(1)
+
+# Les routes d'authentification
+@app.get("/login")
+def login():
+    auth_url = sp_oauth.get_authorize_url()
+    return RedirectResponse(auth_url)
+
+@app.get("/callback")
+def callback(request: Request):
+    code = request.query_params.get("code")
+    if not code:
+        return HTMLResponse("<h2>Erreur : code manquant.</h2>", status_code=400)
+    try:
+        token_info = sp_oauth.get_access_token(code)
+        new_refresh = token_info["refresh_token"]
+        env_path = Path("/home/ode/boesch_os/.env")
+        lines = env_path.read_text().splitlines()
+        lines = [l for l in lines if not l.startswith("SPOTIFY_REFRESH_TOKEN")]
+        lines.append(f"SPOTIFY_REFRESH_TOKEN={new_refresh}")
+        env_path.write_text("\n".join(lines) + "\n")
+        global REFRESH_TOKEN
+        REFRESH_TOKEN = new_refresh
+    except Exception as e:
+        return HTMLResponse(f"<h2>Erreur Spotify : {e}</h2>", status_code=500)
+    return HTMLResponse("""
+        <html><body style="background:#0d0802;color:#ffeedd;font-family:monospace;padding:40px;text-align:center">
+        <h1>✅ Spotify connecté</h1>
+        <p>Token sauvegardé. Vous pouvez fermer cette page.</p>
+        </body></html>
+    """)
+
+@app.get("/api/status")
+def get_status():
+    return {**boat_data, "trip": trip_data}
+
+@app.get("/api/trail")
+def get_trail():
+    return trail
+
+@app.post("/api/trip/reset")
+def reset_trip():
+    trip_data["km"] = 0.0
+    trip_data["nm"] = 0.0
+    trip_data["secondes"] = 0
+    save_trip()
+    trail.clear()
+    save_trail()
+    return {"status": "ok"}
+
+@app.post("/api/switch/{device}")
+def switch_device(device: str):
+    if device == "feux_navigation":
+        boat_data["feux_navigation"] = not boat_data["feux_navigation"]
+        if arduino:
+            cmd = b"1" if boat_data["feux_navigation"] else b"0"
+            arduino.write(cmd)
+    elif device == "lumieres_sous_marines":
+        boat_data["lumieres_sous_marines"] = not boat_data["lumieres_sous_marines"]
+        if arduino:
+            cmd = b"1" if boat_data["lumieres_sous_marines"] else b"0"
+            arduino.write(cmd)
+    return {"status": "ok", "device": device, "state": boat_data.get(device)}
+
+@app.post("/api/spotify/{action}")
+def spotify_action(action: str, playlist_id: str = None):
+    sp = get_spotify_client_sync()
+    if not sp:
+        return {"status": "error", "message": "Spotify non connecté"}
+    try:
+        if action == "play":
+            sp.start_playback()
+        elif action == "pause":
+            sp.pause_playback()
+        elif action == "next":
+            sp.next_track()
+        elif action == "previous":
+            sp.previous_track()
+        elif action == "playlist" and playlist_id:
+            sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    return {"status": "ok"}
+
+@app.get("/", response_class=HTMLResponse)
+def read_root():
+    content = Path("templates/index.html").read_text()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache"
+    })
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
