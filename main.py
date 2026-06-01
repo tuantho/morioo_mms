@@ -600,21 +600,36 @@ def switch_device(device: str):
     }
 
 @app.post("/api/spotify/{action}")
+def _get_device_id(sp):
+    """Retourne l'id du premier appareil Spotify disponible, ou None."""
+    try:
+        devices = sp.devices().get("devices", [])
+        # Préfère l'appareil actif, sinon prend le premier disponible
+        for d in devices:
+            if d["is_active"]:
+                return d["id"]
+        if devices:
+            return devices[0]["id"]
+    except Exception:
+        pass
+    return None
+
 def spotify_action(action: str, playlist_id: str = None):
     sp = get_spotify_client_sync()
     if not sp:
         return {"status": "error", "message": "Spotify non connecté"}
     try:
+        device_id = _get_device_id(sp)
         if action == "play":
-            sp.start_playback()
+            sp.start_playback(device_id=device_id)
         elif action == "pause":
-            sp.pause_playback()
+            sp.pause_playback(device_id=device_id)
         elif action == "next":
-            sp.next_track()
+            sp.next_track(device_id=device_id)
         elif action == "previous":
-            sp.previous_track()
+            sp.previous_track(device_id=device_id)
         elif action == "playlist" and playlist_id:
-            sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
+            sp.start_playback(device_id=device_id, context_uri=f"spotify:playlist:{playlist_id}")
     except Exception as e:
         return {"status": "error", "message": str(e)}
     return {"status": "ok"}
