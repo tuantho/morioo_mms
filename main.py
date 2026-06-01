@@ -599,12 +599,10 @@ def switch_device(device: str):
         "relay_sent": sent,
     }
 
-@app.post("/api/spotify/{action}")
 def _get_device_id(sp):
     """Retourne l'id du premier appareil Spotify disponible, ou None."""
     try:
         devices = sp.devices().get("devices", [])
-        # Préfère l'appareil actif, sinon prend le premier disponible
         for d in devices:
             if d["is_active"]:
                 return d["id"]
@@ -614,6 +612,7 @@ def _get_device_id(sp):
         pass
     return None
 
+@app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
     sp = get_spotify_client_sync()
     if not sp:
