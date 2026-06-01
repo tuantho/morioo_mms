@@ -599,10 +599,16 @@ def switch_device(device: str):
         "relay_sent": sent,
     }
 
+PREFERRED_DEVICE = "Boesch 510 Audio"
+
 def _get_device_id(sp):
-    """Retourne l'id du premier appareil Spotify disponible, ou None."""
+    """Retourne toujours l'id de PREFERRED_DEVICE si disponible, sinon le device actif."""
     try:
         devices = sp.devices().get("devices", [])
+        for d in devices:
+            if d["name"] == PREFERRED_DEVICE:
+                return d["id"]
+        # Fallback : device actif, puis premier de la liste
         for d in devices:
             if d["is_active"]:
                 return d["id"]
