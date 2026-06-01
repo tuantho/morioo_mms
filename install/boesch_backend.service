@@ -12,8 +12,11 @@ Environment="PYTHONPATH=/home/ode/boesch_os"
 ExecStart=/home/ode/boesch_os/venv/bin/python main.py
 Restart=always
 RestartSec=3
-# Watchdog : le backend envoie WATCHDOG=1 à chaque tour de boucle (~1 s). S'il
-# ne le fait plus pendant 30 s (gel/deadlock), systemd tue et relance le service.
+# Type=notify : systemd attend le READY=1 avant de considérer le service
+# démarré, et active NOTIFY_SOCKET pour que les pings WATCHDOG=1 arrivent.
+# Sans cette ligne, WatchdogSec tue le process après 30s (NOTIFY_SOCKET absent).
+Type=notify
+NotifyAccess=main
 WatchdogSec=30
 
 [Install]
