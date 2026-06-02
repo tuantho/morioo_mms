@@ -43,7 +43,7 @@ class MapScreen(carContext: CarContext) : Screen(carContext), SurfaceCallback {
     }
 
     init {
-        AppManager.create(carContext).setSurfaceCallback(this)
+        carContext.getCarService(AppManager::class.java).setSurfaceCallback(this)
 
         lifecycleScope.launch {
             while (true) {
@@ -116,7 +116,7 @@ class MapScreen(carContext: CarContext) : Screen(carContext), SurfaceCallback {
 
     private fun render() {
         val sc = surface ?: return
-        val sf = sc.surface
+        val sf = sc.surface ?: return
         if (!sf.isValid) return
 
         val canvas = sf.lockCanvas(null) ?: return
