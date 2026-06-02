@@ -63,6 +63,11 @@ complète (série, GPS réel) ne se fait que sur le Pi.
   réelle ET la déclarer dans le dashboard Spotify.
 - **Dégradation gracieuse** : Wemos ou GPS absents ⇒ mode virtuel, jamais
   de crash. Garder ce principe pour tout nouveau matériel.
+- **Seuil ODO/trail à 3 km/h** : en dessous, ni l'ODO ni la trace ne
+  s'incrémentent — filtre le bruit GPS à l'arrêt (~0.2 kn parasites).
+- **Trail : pas de point avant GPS fix** : au démarrage, on n'ajoute des
+  points à la trace que si `gps_has_fix` est True (ou simulation pure),
+  pour éviter un trait parasite depuis la position initiale vers le fix.
 
 ### Correctifs intégrés sur `main`
 
@@ -77,7 +82,9 @@ et deviennent du comportement acquis à préserver :
 - Spotify optionnel : l'app démarre même sans `.env`.
 - **Spotify non-bloquant** : `current_playback()` passe par un thread +
   timeout (sinon un réseau lent figeait toute l'event loop). Sélection auto
-  du device + diffusion forcée en priorité sur le device « Boesch 510 Audio ».
+  du device + diffusion forcée en priorité sur le device « Boesch 510 Audio »
+  (`PREFERRED_DEVICE` dans `main.py`). Raspotify tourne comme service séparé
+  (`raspotify.service`) et expose le Pi comme speaker Spotify Connect.
 - **Parsing NMEA robuste** : une trame corrompue est ignorée (`gps_parse_errors`)
   sans déclencher de reconnexion ; seule une vraie erreur d'I/O série
   (`gps_read_errors`) reconnecte le port.
