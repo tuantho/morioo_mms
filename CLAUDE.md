@@ -216,6 +216,47 @@ ne démarrera jamais** (systemd le tue après le timeout). Et si la boucle ne
 ping plus `WATCHDOG=1` pendant 30 s, systemd redémarre le service. Donc :
 toujours préserver les deux appels `_sd_notify`.
 
+## Application Android Auto (`android/`)
+
+Application Kotlin (Car App Library 1.4.0) projetée sur l'autoradio **Ainavi**
+via USB depuis le **Pixel 8**. Le Pi et le téléphone sont sur le même réseau
+(hotspot ou routeur de bord).
+
+### Structure
+
+| Fichier | Rôle |
+|---------|------|
+| `MoriooCarService.kt` | Point d'entrée `CarAppService` |
+| `MoriooSession.kt` | Session + écran d'accueil |
+| `ApiClient.kt` | HTTP vers `http://rasp-boesch:8000` — modifier `BASE` si hostname ne résout pas |
+| `DashboardScreen.kt` | Jauges (vitesse, profondeur, batterie, GPS, ODO, musique, météo) |
+| `ControlsScreen.kt` | Pompe de cale (30 s auto-OFF) + feux sous-marins |
+| `MapScreen.kt` | Carte CartoDB Dark sur `Surface` Android Auto + trace GPS |
+| `TileCache.kt` | Cache LRU 80 tuiles OSM |
+
+### Contraintes & pièges Android Auto
+
+- **Car App Library** : `NavigationTemplate` nécessite la category
+  `androidx.car.app.category.NAVIGATION` dans le Manifest **et** la permission
+  `androidx.car.app.ACCESS_SURFACE` pour le rendu de carte.
+- **`AppManager`** : utiliser `carContext.getCarService(AppManager::class.java).setSurfaceCallback(this)` — `AppManager.create()` est package-private depuis la 1.3+.
+- **`SurfaceContainer.surface`** est nullable depuis la 1.4 → toujours tester avant `lockCanvas`.
+- **HTTP cleartext** : `android:usesCleartextTraffic="true"` requis (Pi = HTTP non chiffré).
+- **Build** : AGP 8.3.2 + Gradle 8.6 + Java 17 + compileSdk/targetSdk 35.
+  Ne pas changer les versions sans tester — des incompatibilités subtiles existent.
+- **Tuiles CartoDB** : `https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png` — même thème sombre que le dashboard Pi.
+
+### Build
+
+```bash
+cd android
+./gradlew assembleDebug
+# APK → app/build/outputs/apk/debug/app-debug.apk
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+---
+
 ## Secrets
 
 `.env` (jamais commité, voir `.env.example`) : `SPOTIFY_CLIENT_ID`,

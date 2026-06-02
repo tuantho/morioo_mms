@@ -24,6 +24,7 @@ Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tou
 | Frontend | HTML5 + Canvas + Leaflet + vanilla JS |
 | Matériel | Raspberry Pi 3, Carpuride, Wemos D1 Mini + shield relais |
 | Musique | Spotify API via `spotipy` |
+| Android Auto | Kotlin + Car App Library 1.4.0 (voir `android/`) |
 
 ---
 
@@ -85,6 +86,16 @@ Interface accessible sur `http://<IP>:8000/`
 │   ├── restore.sh           # Script de restore complet
 │   ├── boesch_backend.service  # Service systemd (Type=notify + watchdog)
 │   └── 99-wemos.rules       # Règle udev CH340 → /dev/ttyWEMOS
+├── android/                 # Application Android Auto (Kotlin)
+│   ├── app/src/main/kotlin/com/morioo/mms/
+│   │   ├── MoriooCarService.kt   # Point d'entrée Car App Service
+│   │   ├── MoriooSession.kt      # Session + écran d'accueil
+│   │   ├── ApiClient.kt          # Appels HTTP vers le Pi (rasp-boesch:8000)
+│   │   ├── DashboardScreen.kt    # Jauges, GPS, musique, météo
+│   │   ├── ControlsScreen.kt     # Pompe de cale, feux sous-marins
+│   │   ├── MapScreen.kt          # Carte CartoDB Dark (Surface rendering)
+│   │   └── TileCache.kt          # Cache LRU des tuiles OSM (80 tuiles max)
+│   └── app/build.gradle          # AGP 8.3.2, Car App Library 1.4.0
 ├── tests/
 │   └── smoke_test.py        # Smoke test : démarre l'app et vérifie les routes
 ├── docs/
@@ -123,6 +134,54 @@ Routes fournies par des **modules** (cf. `modules/`) :
 | `GET` | `/api/anchor` | État de l'alarme de mouillage |
 | `POST` | `/api/anchor/set?radius=` | Pose l'ancre / arme l'alarme |
 | `POST` | `/api/anchor/clear` | Lève l'ancre / désarme |
+
+---
+
+## Android Auto — Application Boesch 510
+
+L'application Android Auto (`android/`) permet de contrôler le bateau depuis
+l'autoradio **Ainavi** (ou tout autre autoradio compatible Android Auto) via
+la projection USB du Pixel 8.
+
+### Architecture
+
+```
+Hotspot Pixel 8
+    ├── Raspberry Pi (rasp-boesch:8000) ← API HTTP
+    └── Ainavi (Android Auto) ← USB ← Pixel 8
+```
+
+### Fonctionnalités
+
+| Écran | Contenu |
+|-------|---------|
+| **Dashboard** | Vitesse, profondeur, batterie, GPS, ODO, musique, météo |
+| **Contrôles** | Pompe de cale (ON 30 s), feux sous-marins toggle |
+| **Carte** | Carte CartoDB Dark + trace GPS, rendu sur Surface Android Auto |
+
+### Build & installation
+
+```bash
+# Dans Android Studio : ouvrir le dossier android/
+# → Build > Build Bundle(s)/APK > Build APK
+
+# Ou en ligne de commande (nécessite Android SDK)
+cd android
+./gradlew assembleDebug
+# APK : app/build/outputs/apk/debug/app-debug.apk
+
+# Installer sur le Pixel 8
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+> **Prérequis :** Java 17, Android SDK 35, Gradle 8.6 (wrapper inclus).
+
+### Connexion réseau
+
+Le Pi doit être joignable via `rasp-boesch` depuis le téléphone. Pour ça,
+configure le Pi en client Wi-Fi sur le hotspot du Pixel 8 (ou un routeur
+de bord commun). Si le hostname ne résout pas, modifier `BASE` dans
+`ApiClient.kt` avec l'IP fixe du Pi.
 
 ---
 
