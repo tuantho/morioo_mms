@@ -9,6 +9,7 @@ import urllib.parse
 import json
 import time
 import logging
+import threading
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 from pathlib import Path
@@ -31,6 +32,7 @@ _state = {
     "error":       "",
 }
 _tick_count = 0
+_fetch_running = False   # évite les appels concurrents
 
 
 # WMO weather codes → (emoji, label court)
@@ -83,26 +85,15 @@ def _fetch(lat, lon):
         return json.loads(r.read())
 
 
-def tick(boat_data):
-    """Appelé ~1×/s par le cœur. Poll météo toutes les POLL_INTERVAL secondes."""
-    global _tick_count
-    _tick_count += 1
-    # Premier appel immédiat, puis toutes les 10 min
-    if _tick_count != 1 and _tick_count % POLL_INTERVAL != 0:
-        return
-
-    lat = boat_data.get("lat")
-    lon = boat_data.get("lon")
-    if lat is None or lon is None:
-        return
-
+def _fetch_in_background(lat, lon):
+    """Exécuté dans un thread — ne bloque jamais l'event loop."""
+    global _fetch_running
     try:
         data = _fetch(lat, lon)
         cur  = data["current"]
         code = cur.get("weather_code")
         icon, label = _wmo(code)
 
-        # Prévisions : 3 prochaines heures complètes
         hours  = data["hourly"]["time"]
         temps  = data["hourly"]["temperature_2m"]
         codes  = data["hourly"]["weather_code"]
@@ -111,11 +102,7 @@ def tick(boat_data):
         for i, h in enumerate(hours):
             if h > now_h and len(forecast) < 3:
                 hi, _ = _wmo(codes[i])
-                forecast.append({
-                    "hour":  h[11:16],   # "HH:MM"
-                    "icon":  hi,
-                    "temp":  temps[i],
-                })
+                forecast.append({"hour": h[11:16], "icon": hi, "temp": temps[i]})
 
         _state.update({
             "ok":          True,
@@ -134,6 +121,27 @@ def tick(boat_data):
         _state["ok"]    = False
         _state["error"] = str(e)
         log.warning("Météo indisponible : %s", e)
+    finally:
+        _fetch_running = False
+
+
+def tick(boat_data):
+    """Appelé ~1×/s par le cœur. Lance le fetch dans un thread — non bloquant."""
+    global _tick_count, _fetch_running
+    _tick_count += 1
+    # Premier appel immédiat, puis toutes les 10 min
+    if _tick_count != 1 and _tick_count % POLL_INTERVAL != 0:
+        return
+    if _fetch_running:
+        return   # fetch précédent pas encore terminé
+
+    lat = boat_data.get("lat")
+    lon = boat_data.get("lon")
+    if lat is None or lon is None:
+        return
+
+    _fetch_running = True
+    threading.Thread(target=_fetch_in_background, args=(lat, lon), daemon=True).start()
 
 
 @router.get("")
