@@ -17,6 +17,21 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
+        <!-- Activity obligatoire pour que Android Auto détecte l'app dans le launcher -->
+        <activity
+            android:name="androidx.car.app.activity.CarAppActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
+        </activity>
+
         <!-- Service Android Auto — point d'entrée de la Car App -->
         <service
             android:name=".MoriooCarService"
@@ -27,6 +42,9 @@
                 <!-- NAVIGATION : autorise NavigationTemplate (carte) + tous les autres templates -->
                 <category android:name="androidx.car.app.category.NAVIGATION" />
             </intent-filter>
+            <meta-data
+                android:name="androidx.car.app.minCarApiLevel"
+                android:value="1" />
         </service>
 
     </application>

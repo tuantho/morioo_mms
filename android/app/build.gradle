@@ -46,6 +46,8 @@ configurations.all {
 dependencies {
     // Car App Library — Android Auto (projection téléphone → autoradio)
     implementation 'androidx.car.app:app:1.4.0'
+    // Activity launcher — obligatoire pour apparaître dans Android Auto
+    implementation 'androidx.car.app:app-projected:1.4.0'
 
     // Coroutines pour les appels réseau non-bloquants
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
