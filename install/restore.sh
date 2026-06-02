@@ -43,11 +43,10 @@ sudo cp $REPO_DIR/install/99-wemos.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
-echo "=== [6/6] Cron refresh Chromium (toutes les 5 min) ==="
-chmod +x $REPO_DIR/refresh_chromium.sh
-# Ajoute la ligne seulement si elle n'existe pas déjà
-(crontab -u $USER -l 2>/dev/null | grep -v refresh_chromium; \
- echo "*/5 * * * * $REPO_DIR/refresh_chromium.sh") | crontab -u $USER -
+echo "=== [6/6] Suppression du cron refresh Chromium (remplacé par bouton manuel) ==="
+# On retire l'entrée si elle traîne d'une ancienne install — le reload
+# est maintenant déclenché manuellement en cliquant sur "BOESCH 510".
+crontab -u $USER -l 2>/dev/null | grep -v refresh_chromium | crontab -u $USER - || true
 
 echo ""
 echo "=== Restore terminé ==="
