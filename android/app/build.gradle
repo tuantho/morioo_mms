@@ -34,24 +34,15 @@ android {
     }
 }
 
-// Workaround : évite les conflits de résolution sur les configs de test
-configurations.all {
-    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-        if (details.requested.group == 'org.jetbrains.kotlin') {
-            details.useVersion '1.9.23'
-        }
-    }
-}
-
 dependencies {
     // Car App Library — Android Auto (projection téléphone → autoradio)
     implementation 'androidx.car.app:app:1.4.0'
     // Activity launcher — obligatoire pour apparaître dans Android Auto
     implementation 'androidx.car.app:app-projected:1.4.0'
 
-    // Coroutines pour les appels réseau non-bloquants
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // Coroutines (aligné Kotlin 2.x)
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // lifecycleScope sur Screen
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
 }
