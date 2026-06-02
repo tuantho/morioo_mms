@@ -52,20 +52,7 @@
         #gps-indicator.fix { color: #38b000; border-color: #38b000; }
         #gps-indicator.nofix { color: #8e6f43; border-color: #3d2510; }
 
-        /* Anchor watch */
-        .anchor-container { display: flex; gap: 8px; width: 100%; align-items: stretch; }
-        .btn-anchor { background-color: #1a1205; color: #ffeedd; border: 3px solid #8e6f43; padding: 14px; font-size: 1em; border-radius: 10px; cursor: pointer; font-weight: bold; flex: 2; text-transform: uppercase; }
-        .btn-anchor.armed { background-color: #00334e; border-color: #0a9396; box-shadow: 0 0 12px #0a939688; }
-        .btn-anchor.alarm { background-color: #7d0000; border-color: #e63946; animation: anchorFlash 0.6s infinite; }
-        @keyframes anchorFlash { 0%,100% { box-shadow: 0 0 8px #e63946; } 50% { box-shadow: 0 0 28px #e63946; background-color: #c0001a; } }
-        .anchor-info { background-color: #1a1205; border: 3px solid #3d2510; border-radius: 10px; padding: 8px 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 0; }
-        .anchor-info.armed { border-color: #0a9396; }
-        .anchor-info.alarm { border-color: #e63946; }
-        .anchor-info-label { color: #8e6f43; font-size: 0.68em; text-transform: uppercase; }
-        .anchor-info-value { color: #fff; font-size: 1.1em; font-weight: bold; }
-        .anchor-radius-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
-        .btn-radius { background-color: #1a1205; color: #8e6f43; border: 1px solid #3d2510; padding: 4px 8px; font-size: 0.72em; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-radius.selected { border-color: #0a9396; color: #0a9396; }
+        /* Les styles des modules (ex. anchor watch) sont injectés par leur propre JS. */
     </style>
 </head>
 <body>
@@ -98,18 +85,8 @@
                 <button id="btn-underwater" class="btn-toggle underwater-btn" onclick="toggleSwitch('lumieres_sous_marines')">LUMIÈRES EAU : OFF</button>
             </div>
 
-            <div class="anchor-container">
-                <button id="btn-anchor" class="btn-anchor" onclick="toggleAnchor()">⚓ MOUILLAGE : OFF</button>
-                <div id="anchor-info" class="anchor-info">
-                    <div class="anchor-info-label">Dérive</div>
-                    <div class="anchor-info-value" id="anchor-dist">— m</div>
-                </div>
-                <div class="anchor-radius-btns">
-                    <button class="btn-radius" onclick="setAnchorRadius(25)">25m</button>
-                    <button class="btn-radius selected" id="r50" onclick="setAnchorRadius(50)">50m</button>
-                    <button class="btn-radius" onclick="setAnchorRadius(100)">100m</button>
-                </div>
-            </div>
+            <!-- Zone où les modules optionnels (modules/*.py) injectent leur UI -->
+            <div id="modules-bar" style="display:flex; flex-direction:column; gap:10px; width:100%;"></div>
 
             <div class="odo-container">
                 <div class="odo-block">
@@ -319,12 +296,6 @@
                 if(data.lumieres_sous_marines) { btnUnder.innerText = "LUMIÈRES EAU : ON"; btnUnder.classList.add('active'); }
                 else { btnUnder.innerText = "LUMIÈRES EAU : OFF"; btnUnder.classList.remove('active'); }
 
-                // Anchor watch
-                if (data.anchor) {
-                    anchorArmed = data.anchor.active;
-                    updateAnchorUI(data.anchor);
-                }
-
             } catch (e) {}
         }
 
@@ -350,113 +321,18 @@
         setInterval(refreshTrail, 5000);
         refreshTrail();
 
-        // --- ANCHOR WATCH ---
-        let anchorRadius = 50;
-        let anchorArmed  = false;
-        let anchorMarker = null;
-        let anchorCircle = null;
-        let anchorAlarmSound = null;
-
-        function setAnchorRadius(r) {
-            anchorRadius = r;
-            document.querySelectorAll('.btn-radius').forEach(b => b.classList.remove('selected'));
-            // Highlight le bouton correspondant
-            document.querySelectorAll('.btn-radius').forEach(b => {
-                if (b.textContent === r + 'm') b.classList.add('selected');
+        // Chargement automatique des frontends de modules (modules/*.py).
+        // L'UI demande la liste au backend et charge le JS de chacun.
+        // Ajouter un module ne touche pas ce fichier.
+        fetch('/api/modules').then(r => r.json()).then(mods => {
+            (mods || []).forEach(m => {
+                if (m.ui_js) {
+                    const sc = document.createElement('script');
+                    sc.src = m.ui_js;
+                    document.body.appendChild(sc);
+                }
             });
-            // Si déjà armé, mettre à jour le rayon
-            if (anchorArmed) {
-                fetch(`/api/anchor/set?radius=${r}`, { method: 'POST' }).then(r => r.json()).then(d => {
-                    if (anchorCircle) anchorCircle.setRadius(d.radius_m);
-                });
-            }
-        }
-
-        async function toggleAnchor() {
-            if (anchorArmed) {
-                // Désarmer
-                await fetch('/api/anchor/clear', { method: 'POST' });
-                anchorArmed = false;
-                if (anchorMarker) { map.removeLayer(anchorMarker); anchorMarker = null; }
-                if (anchorCircle) { map.removeLayer(anchorCircle); anchorCircle = null; }
-                stopAnchorAlarmSound();
-                updateAnchorUI({ active: false, alarm: false, distance_m: 0 });
-            } else {
-                // Armer à la position courante
-                let resp = await fetch(`/api/anchor/set?radius=${anchorRadius}`, { method: 'POST' });
-                let d = await resp.json();
-                anchorArmed = true;
-                let pos = [d.lat, d.lon];
-                // Marqueur ancre
-                anchorMarker = L.marker(pos, {
-                    icon: L.divIcon({
-                        html: '<div style="font-size:24px;line-height:1;filter:drop-shadow(0 0 4px #0a9396)">⚓</div>',
-                        iconAnchor: [12, 12],
-                        className: ''
-                    })
-                }).addTo(map);
-                // Cercle de rayon
-                anchorCircle = L.circle(pos, {
-                    radius: d.radius_m,
-                    color: '#0a9396', fillColor: '#0a9396', fillOpacity: 0.08,
-                    weight: 2, dashArray: '6 4'
-                }).addTo(map);
-                updateAnchorUI({ active: true, alarm: false, distance_m: 0 });
-            }
-        }
-
-        function updateAnchorUI(anchor) {
-            const btn  = document.getElementById('btn-anchor');
-            const info = document.getElementById('anchor-info');
-            const dist = document.getElementById('anchor-dist');
-
-            if (!anchor.active) {
-                btn.textContent = '⚓ MOUILLAGE : OFF';
-                btn.className   = 'btn-anchor';
-                info.className  = 'anchor-info';
-                dist.textContent = '— m';
-                stopAnchorAlarmSound();
-                return;
-            }
-            if (anchor.alarm) {
-                btn.textContent = '⚓ DÉRIVE !';
-                btn.className   = 'btn-anchor alarm';
-                info.className  = 'anchor-info alarm';
-                playAnchorAlarmSound();
-                // Cercle rouge pendant alarme
-                if (anchorCircle) anchorCircle.setStyle({ color: '#e63946', fillColor: '#e63946' });
-            } else {
-                btn.textContent = '⚓ MOUILLAGE : ON';
-                btn.className   = 'btn-anchor armed';
-                info.className  = 'anchor-info armed';
-                stopAnchorAlarmSound();
-                if (anchorCircle) anchorCircle.setStyle({ color: '#0a9396', fillColor: '#0a9396' });
-            }
-            dist.textContent = anchor.distance_m.toFixed(0) + ' m';
-        }
-
-        // Bip d'alarme via Web Audio API (pas de fichier audio requis)
-        let _alarmInterval = null;
-        function playAnchorAlarmSound() {
-            if (_alarmInterval) return;   // déjà en train de biper
-            _alarmInterval = setInterval(() => {
-                try {
-                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.connect(gain); gain.connect(ctx.destination);
-                    osc.type = 'square'; osc.frequency.value = 880;
-                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-                    osc.start(ctx.currentTime);
-                    osc.stop(ctx.currentTime + 0.4);
-                    setTimeout(() => ctx.close(), 600);
-                } catch(e) {}
-            }, 1500);
-        }
-        function stopAnchorAlarmSound() {
-            if (_alarmInterval) { clearInterval(_alarmInterval); _alarmInterval = null; }
-        }
+        }).catch(() => {});
 
         // --- ENVOI DES ACTIONS ---
         const _switchLock = {};
