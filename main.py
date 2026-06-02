@@ -214,6 +214,43 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+# ---------------------------------------------------------------------------
+# Chargement automatique des modules optionnels (dossier modules/).
+# Chaque module est ISOLÉ : une erreur de chargement ou d'exécution est loggée
+# et n'affecte jamais le reste de l'application (cf. modules/__init__.py).
+# Ajouter une fonctionnalité = déposer un fichier dans modules/ (rien à modifier
+# ici ni dans index.html grâce à /api/modules).
+# ---------------------------------------------------------------------------
+import importlib
+import pkgutil
+
+LOADED_MODULES = []
+_MODULES_DIR = Path(__file__).parent / "modules"
+if _MODULES_DIR.is_dir():
+    for _info in pkgutil.iter_modules([str(_MODULES_DIR)]):
+        try:
+            _mod = importlib.import_module(f"modules.{_info.name}")
+            if hasattr(_mod, "router"):
+                app.include_router(_mod.router)
+            LOADED_MODULES.append(_mod)
+            log.info("Module chargé : %s", _info.name)
+        except Exception as e:
+            log.error("Module '%s' ignoré (erreur de chargement) : %s", _info.name, e)
+
+
+@app.get("/api/modules")
+def list_modules():
+    """Liste les modules chargés + l'URL de leur frontend, pour que l'UI charge
+    leur JS automatiquement (sans modifier index.html à chaque nouveau module)."""
+    out = []
+    for m in LOADED_MODULES:
+        entry = {"name": getattr(m, "UI_LABEL", m.__name__.rsplit(".", 1)[-1])}
+        if hasattr(m, "UI_LABEL") and hasattr(m, "router"):
+            entry["ui_js"] = m.router.prefix + "/ui.js"
+        out.append(entry)
+    return out
+
+
 TRIP_FILE = Path("/home/ode/boesch_os/trip.json")
 
 def load_trip():
@@ -297,18 +334,6 @@ _trail_dirty = False   # trace modifiée depuis la dernière sauvegarde
 
 # Trace GPS (max 600 points ≈ 10 min)
 trail = load_trail()
-
-# État de l'alarme de mouillage (anchor watch).
-# Quand active=True, on surveille la distance entre la position courante et le
-# point de mouillage ; si elle dépasse radius_m, alarm passe à True.
-anchor_data = {
-    "active":     False,
-    "lat":        None,
-    "lon":        None,
-    "radius_m":   50,      # rayon par défaut en mètres
-    "alarm":      False,
-    "distance_m": 0.0,
-}
 
 boat_data = {
     "vitesse": 0.0,
@@ -459,19 +484,6 @@ async def simulate_boat_and_spotify():
                 _send_relay(False)
                 log.info("Pompe de cale : arrêt automatique après 30 s")
 
-        # Anchor watch : calcul de la dérive depuis le point de mouillage
-        if anchor_data["active"] and anchor_data["lat"] is not None:
-            dist_km = _haversine_km(
-                (boat_data["lat"], boat_data["lon"]),
-                (anchor_data["lat"], anchor_data["lon"])
-            )
-            dist_m = dist_km * 1000.0
-            anchor_data["distance_m"] = round(dist_m, 1)
-            was_alarm = anchor_data["alarm"]
-            anchor_data["alarm"] = dist_m > anchor_data["radius_m"]
-            if anchor_data["alarm"] and not was_alarm:
-                log.warning("⚓ ALARME MOUILLAGE — dérive de %.0f m (rayon %d m)",
-                            dist_m, anchor_data["radius_m"])
 
         # ODO : seuil à 3 km/h pour filtrer le bruit GPS à l'arrêt (~0.2 km/h parasites)
         if vitesse_kmh > 3.0:
@@ -525,6 +537,16 @@ async def simulate_boat_and_spotify():
                 boat_data["music_title"]  = "En attente de connexion..."
                 boat_data["music_artist"] = ""
 
+        # Modules optionnels : chaque tick est ISOLÉ — une panne d'un module ne
+        # doit affecter ni le dashboard ni les autres modules.
+        for _mod in LOADED_MODULES:
+            _tick = getattr(_mod, "tick", None)
+            if _tick:
+                try:
+                    _tick(boat_data)
+                except Exception as e:
+                    log.error("Module '%s' tick a échoué : %s", _mod.__name__, e)
+
         await asyncio.sleep(1)
 
 # Les routes d'authentification
@@ -563,32 +585,8 @@ def callback(request: Request):
 
 @app.get("/api/status")
 def get_status():
-    return {**boat_data, "trip": trip_data, "anchor": anchor_data}
+    return {**boat_data, "trip": trip_data}
 
-
-@app.post("/api/anchor/set")
-def set_anchor(radius: int = 50):
-    """Arme l'alarme de mouillage à la position GPS courante."""
-    anchor_data["active"]     = True
-    anchor_data["lat"]        = boat_data["lat"]
-    anchor_data["lon"]        = boat_data["lon"]
-    anchor_data["radius_m"]   = max(10, min(radius, 500))
-    anchor_data["alarm"]      = False
-    anchor_data["distance_m"] = 0.0
-    log.info("⚓ Anchor watch armé à (%.6f, %.6f) rayon %d m",
-             anchor_data["lat"], anchor_data["lon"], anchor_data["radius_m"])
-    return {"status": "ok", "lat": anchor_data["lat"], "lon": anchor_data["lon"],
-            "radius_m": anchor_data["radius_m"]}
-
-
-@app.post("/api/anchor/clear")
-def clear_anchor():
-    """Désarme l'alarme de mouillage."""
-    anchor_data["active"]     = False
-    anchor_data["alarm"]      = False
-    anchor_data["distance_m"] = 0.0
-    log.info("⚓ Anchor watch désarmé")
-    return {"status": "ok"}
 
 @app.get("/api/trail")
 def get_trail():
@@ -733,4 +731,8 @@ def read_root():
     })
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    # On passe l'objet `app` (et non la chaîne "main:app") pour qu'uvicorn ne
+    # réimporte pas le module : sinon le chargement des modules s'exécute deux
+    # fois (une fois en __main__, une fois au réimport "main"). reload non
+    # utilisé en prod, donc l'objet direct convient.
+    uvicorn.run(app, host="0.0.0.0", port=8000)
