@@ -428,9 +428,9 @@ async def simulate_boat_and_spotify():
         else:
             vitesse_kmh = boat_data["vitesse"] * 1.852
 
-        # Trace : on n'ajoute un point que si la position est fiable —
-        # soit GPS fix valide, soit mode simulation pure (pas de GPS branché).
-        position_ok = (not gps_serial) or gps_has_fix
+        # Trace : position fiable ET bateau en mouvement (> 3 km/h)
+        # pour éviter les points parasites dus au bruit GPS à l'arrêt.
+        position_ok = ((not gps_serial) or gps_has_fix) and vitesse_kmh > 3.0
         pt = [boat_data["lat"], boat_data["lon"]]
         if position_ok and (not trail or trail[-1] != pt):
             trail.append(pt)
@@ -438,8 +438,8 @@ async def simulate_boat_and_spotify():
                 trail.pop(0)
             _trail_dirty = True
 
-        # ODO : incrémente seulement si vitesse > 1 km/h
-        if vitesse_kmh > 1.0:
+        # ODO : seuil à 3 km/h pour filtrer le bruit GPS à l'arrêt (~0.2 km/h parasites)
+        if vitesse_kmh > 3.0:
             trip_data["km"]       = round(trip_data["km"] + vitesse_kmh / 3600, 4)
             trip_data["nm"]       = round(trip_data["nm"] + boat_data["vitesse"] / 3600, 4)
             trip_data["secondes"] += 1
