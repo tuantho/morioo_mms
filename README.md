@@ -110,7 +110,7 @@ Le port est fixé via udev : le Wemos (chip CH340, `idVendor=1a86`) est toujours
 ---
 
 ## TODO
-- [ ] GPS réel — parse NMEA depuis `/dev/ttyACM0`
+- [x] GPS réel — parse NMEA `$GPRMC`/`$GNRMC` depuis `/dev/ttyACM0` (u-blox 7)
 - [ ] Capteur de profondeur réel — parse sonar NMEA
 - [ ] Tension batterie réelle — lecture analogique depuis le Wemos
 - [ ] Contrôle couleur projecteurs OceanLED
