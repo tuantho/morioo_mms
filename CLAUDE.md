@@ -75,6 +75,15 @@ et deviennent du comportement acquis à préserver :
 - Écritures SD rares / atomiques (`.tmp`→rename) / conditionnelles
   (drapeaux *dirty*), via `SAVE_INTERVAL`.
 - Spotify optionnel : l'app démarre même sans `.env`.
+- **Spotify non-bloquant** : `current_playback()` passe par un thread +
+  timeout (sinon un réseau lent figeait toute l'event loop). Sélection auto
+  du device + diffusion forcée en priorité sur le device « Boesch 510 Audio ».
+- **Parsing NMEA robuste** : une trame corrompue est ignorée (`gps_parse_errors`)
+  sans déclencher de reconnexion ; seule une vraie erreur d'I/O série
+  (`gps_read_errors`) reconnecte le port.
+- **Carte type Waze** (frontend) : suivi du bateau centré en temps réel,
+  désengagé dès qu'on touche la carte, bouton 🎯 Recentrer pour réengager.
+- **Watchdog systemd** : voir la section Résilience.
 - Logging structuré + endpoint `/api/diag` (compteurs de diagnostic).
 
 ## Contraintes Raspberry Pi (à respecter dans tout changement)
@@ -135,6 +144,22 @@ Les garde-fous ci-dessous sont **implémentés sur `main`** (supervisor
   bouge ne doit pas nécessiter un reboot du service.
 - `switch_device` : ne mettre à jour l'état logiciel que si le `write`
   série a réussi, sinon l'UI ment sur l'état réel du relais.
+
+### Watchdog systemd (en place — PIÈGE)
+
+`Restart=always` relance si le process **crashe**, mais pas s'il **se fige**.
+Un watchdog couvre le gel :
+- `main.py` appelle `_sd_notify("WATCHDOG=1")` à chaque tour de la boucle
+  `simulate_boat_and_spotify` (~1 s), et `_sd_notify("READY=1")` à la fin du
+  `lifespan`.
+- `boesch_backend.service` : `Type=notify` + `NotifyAccess=main` + `WatchdogSec=30`.
+
+⚠️ **PIÈGE** : comme le service est en `Type=notify`, systemd **attend
+`READY=1`** avant de considérer le démarrage réussi. Si tu modifies le
+`lifespan` et que `READY=1` n'est plus envoyé (ou trop tard), **le service
+ne démarrera jamais** (systemd le tue après le timeout). Et si la boucle ne
+ping plus `WATCHDOG=1` pendant 30 s, systemd redémarre le service. Donc :
+toujours préserver les deux appels `_sd_notify`.
 
 ## Secrets
 
