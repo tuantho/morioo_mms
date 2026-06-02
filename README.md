@@ -69,8 +69,11 @@ Interface accessible sur `http://<IP>:8000/`
 
 ```
 .
-├── main.py                  # Backend FastAPI — API, serial, Spotify, ODO
+├── main.py                  # Backend FastAPI — cœur + socle de chargement des modules
 ├── requirements.txt         # Dépendances Python
+├── modules/                 # Fonctionnalités optionnelles (1 par fichier, auto-chargées)
+│   ├── anchor_watch.py      #   alarme de mouillage — backend
+│   └── anchor_watch.js      #   alarme de mouillage — frontend
 ├── templates/
 │   └── index.html           # Dashboard (jauges, carte, boutons, ODO, audio)
 ├── relais_usb/
@@ -83,6 +86,12 @@ Interface accessible sur `http://<IP>:8000/`
 ├── trip.json                # Données ODO persistées (ignoré par git)
 └── bin/                     # arduino-cli binary
 ```
+
+> **Architecture modulaire** : chaque fonctionnalité optionnelle est un module
+> autoporté dans `modules/` (auto-découvert au démarrage, isolé des autres via
+> `try/except`). Pour **ajouter** une feature → créer `modules/<nom>.py`
+> (+ `.js` optionnel) ; pour **retirer** → supprimer le fichier. Rien à câbler
+> dans le cœur. Règles détaillées dans **`CLAUDE.md`**.
 
 ---
 
