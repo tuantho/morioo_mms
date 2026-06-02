@@ -47,6 +47,54 @@ complète (série, GPS réel) ne se fait que sur le Pi.
 - `relais_usb/relais_usb.ino` — firmware Wemos D1 Mini : lit '1'/'0' sur
   la série (115200) → relais ON/OFF.
 - `install/` — restore.sh, service systemd, règle udev.
+- `modules/` — **fonctionnalités optionnelles**, une par fichier, chargées
+  automatiquement (voir la section dédiée ci-dessous).
+
+## Architecture modulaire (`modules/`) — LIRE AVANT D'AJOUTER UNE FONCTIONNALITÉ
+
+⚠️ **Règle d'or, pour tout contributeur — humain OU assistant IA (Claude) :**
+**toute nouvelle fonctionnalité va dans un module `modules/<nom>.py`, JAMAIS
+en dur dans `main.py` ni `index.html`.** Le cœur ne contient que
+l'infrastructure commune (jauges, GPS, ODO, relais, Spotify, et le socle qui
+charge les modules). On ne modifie le cœur que pour l'infrastructure.
+
+Pourquoi : **isolation des pannes** (un module qui plante n'affecte ni le
+dashboard ni les autres modules — chaque `tick`/chargement est sous try/except)
+et **indépendance** (proposer/retirer une feature sans entremêler le code).
+Exemple de référence : `modules/anchor_watch.py` + `modules/anchor_watch.js`.
+
+### Ajouter une fonctionnalité
+
+1. Créer `modules/<nom>.py` exposant :
+   - `router` : un `APIRouter(prefix="/api/<nom>")` avec ses endpoints.
+   - `tick(boat_data)` *(optionnel)* : appelé ~1×/s par la boucle principale ;
+     reçoit l'état du bateau, ne doit pas dépendre du reste de `main.py`.
+   - `UI_LABEL` + `@router.get("/ui.js")` *(optionnel)* si le module a un frontend.
+2. Créer `modules/<nom>.js` *(optionnel)* : frontend autonome qui s'injecte
+   dans `#modules-bar` (et utilise `window.map` au besoin). Servi par le module.
+3. **Rien à câbler** : le socle découvre le module au démarrage, l'expose sur
+   `/api/modules`, et l'UI charge son JS automatiquement.
+
+Pour **retirer** une fonctionnalité : supprimer son/ses fichier(s) dans
+`modules/`. Rien d'autre.
+
+### Ce qu'il NE faut PAS faire
+
+- ❌ Définir un `xxx_data` global + des routes `@app.post("/api/xxx")` dans
+  `main.py` pour une feature → ça va dans un module.
+- ❌ Mettre le calcul d'une feature dans `simulate_boat_and_spotify` → utiliser
+  le `tick(boat_data)` du module.
+- ❌ Ajouter des boutons/JS d'une feature dans `index.html` → le module fournit
+  son UI via son `.js`.
+- ❌ Exposer l'état d'une feature dans `/api/status` → le module a sa route `/api/<nom>`.
+
+### Note pour les assistants IA (Claude & autres comptes)
+
+Si on te demande d'ajouter une fonctionnalité : **crée un module dans
+`modules/`**, ne touche au cœur que pour de l'infrastructure réellement
+partagée. **Avant de coder, vérifie que la feature n'existe pas déjà**
+(regarde `modules/` et `GET /api/modules`) pour éviter les doublons. En cas de
+doute « infra vs feature », demande plutôt que de modifier le cœur.
 
 ## Conventions & pièges (IMPORTANT)
 
