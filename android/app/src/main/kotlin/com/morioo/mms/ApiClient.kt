@@ -1,5 +1,6 @@
 package com.morioo.mms
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -14,6 +15,8 @@ object ApiClient {
         val profondeur:          Double,
         val batterie:            Double,
         val gpsFix:              Boolean,
+        val lat:                 Double,
+        val lon:                 Double,
         val pompeDeCale:         Boolean,
         val pompeTimer:          Int,
         val lumieresSousMarine:  Boolean,
@@ -41,6 +44,8 @@ object ApiClient {
             profondeur         = j.optDouble("profondeur", 0.0),
             batterie           = j.optDouble("batterie", 0.0),
             gpsFix             = j.optBoolean("gps_fix", false),
+            lat                = j.optDouble("lat", 50.4901),
+            lon                = j.optDouble("lon", 5.1002),
             pompeDeCale        = j.optBoolean("pompe_de_cale", false),
             pompeTimer         = j.optInt("pompe_timer", 0),
             lumieresSousMarine = j.optBoolean("lumieres_sous_marines", false),
@@ -67,6 +72,19 @@ object ApiClient {
         conn.disconnect()
         ok
     } catch (e: Exception) { false }
+
+    /** Récupère la trace GPS (liste de [lat, lon]). */
+    fun getTrail(): List<List<Double>> = try {
+        val conn = (URL("$BASE/api/trail").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 3000; readTimeout = 3000
+        }
+        val arr = JSONArray(conn.inputStream.bufferedReader().readText())
+        conn.disconnect()
+        (0 until arr.length()).map { i ->
+            val pt = arr.getJSONArray(i)
+            listOf(pt.getDouble(0), pt.getDouble(1))
+        }
+    } catch (e: Exception) { emptyList() }
 
     private fun get(path: String): JSONObject? = try {
         val conn = (URL("$BASE$path").openConnection() as HttpURLConnection).apply {

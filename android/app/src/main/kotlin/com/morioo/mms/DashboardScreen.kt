@@ -105,6 +105,13 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
         }
 
         actionStrip.addAction(Action.Builder()
+            .setTitle("🗺 Carte")
+            .setOnClickListener {
+                screenManager.push(MapScreen(carContext))
+            }
+            .build())
+
+        actionStrip.addAction(Action.Builder()
             .setTitle("🎮 Contrôles")
             .setOnClickListener {
                 screenManager.push(ControlsScreen(carContext))
