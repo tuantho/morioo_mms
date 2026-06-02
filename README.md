@@ -7,11 +7,13 @@ Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tou
 
 **Fonctionnalités :**
 - Jauges temps réel : vitesse (km/h), profondeur (m), tension batterie (V)
-- Carte nautique live (Leaflet + OpenSeaMap)
-- Contrôle des feux de navigation et projecteurs sous-marins OceanLED X-Series
+- Carte nautique live (Leaflet + OpenSeaMap) avec suivi du bateau (type Waze)
+- Contrôle de la pompe de cale (arrêt auto après 30 s) et des feux sous-marins OceanLED X-Series
+- ⚓ Alarme de mouillage (anchor watch) : dérive + alarme visuelle et sonore
 - Compteur de trip ODO (km, nautiques, temps de navigation) avec reset
 - Lecture Spotify avec contrôle playback et playlists
-- Communication USB/Série vers Wemos D1 Mini (ESP8266) pour le relais
+- Communication USB/Série vers Wemos D1 Mini (ESP8266) pour les relais
+- Diagnostic embarqué (`/api/diag`) et **architecture modulaire** pour les extensions
 
 ---
 
@@ -71,6 +73,7 @@ Interface accessible sur `http://<IP>:8000/`
 .
 ├── main.py                  # Backend FastAPI — cœur + socle de chargement des modules
 ├── requirements.txt         # Dépendances Python
+├── CLAUDE.md                # Guide contributeur (pièges, archi modulaire, sécurité)
 ├── modules/                 # Fonctionnalités optionnelles (1 par fichier, auto-chargées)
 │   ├── anchor_watch.py      #   alarme de mouillage — backend
 │   └── anchor_watch.js      #   alarme de mouillage — frontend
@@ -80,10 +83,14 @@ Interface accessible sur `http://<IP>:8000/`
 │   └── relais_usb.ino       # Firmware Wemos D1 Mini (Arduino C++)
 ├── install/
 │   ├── restore.sh           # Script de restore complet
-│   ├── boesch_backend.service  # Service systemd
+│   ├── boesch_backend.service  # Service systemd (Type=notify + watchdog)
 │   └── 99-wemos.rules       # Règle udev CH340 → /dev/ttyWEMOS
+├── tests/
+│   └── smoke_test.py        # Smoke test : démarre l'app et vérifie les routes
+├── docs/
+│   └── screenshot.png       # Capture du dashboard
 ├── refresh_chromium.sh      # Envoi F5 à Chromium (appelé par cron)
-├── trip.json                # Données ODO persistées (ignoré par git)
+├── trip.json / trail.json   # Données ODO + trace persistées (ignorés par git)
 └── bin/                     # arduino-cli binary
 ```
 
@@ -100,11 +107,22 @@ Interface accessible sur `http://<IP>:8000/`
 | Méthode | Route | Description |
 |---------|-------|-------------|
 | `GET` | `/api/status` | Toutes les données bateau + trip ODO |
-| `POST` | `/api/switch/feux_navigation` | Toggle feux de navigation |
-| `POST` | `/api/switch/lumieres_sous_marines` | Toggle projecteurs OceanLED |
+| `GET` | `/api/trail` | Trace GPS (liste de points) |
+| `GET` | `/api/diag` | Compteurs de diagnostic + uptime |
+| `GET` | `/api/modules` | Modules chargés + URL de leur frontend |
+| `POST` | `/api/switch/pompe_de_cale` | Toggle pompe de cale (arrêt auto 30 s) |
+| `POST` | `/api/switch/lumieres_sous_marines` | Toggle feux sous-marins OceanLED |
 | `POST` | `/api/trip/reset` | Remet le compteur ODO à zéro |
 | `POST` | `/api/spotify/{action}` | play / pause / next / previous |
 | `POST` | `/api/spotify/playlist?playlist_id=` | Lancer une playlist |
+
+Routes fournies par des **modules** (cf. `modules/`) :
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| `GET` | `/api/anchor` | État de l'alarme de mouillage |
+| `POST` | `/api/anchor/set?radius=` | Pose l'ancre / arme l'alarme |
+| `POST` | `/api/anchor/clear` | Lève l'ancre / désarme |
 
 ---
 
@@ -132,9 +150,7 @@ Classées de la plus intéressante à la moins, du point de vue du propriétaire
 du *Boesch 510* (balades sur la Meuse, sécurité, confort à bord).
 
 ### 🛟 Sécurité (priorité haute)
-1. **⚓ Alarme de mouillage (anchor watch)** — on pose l'ancre, l'app mémorise
-   la position GPS ; si le bateau dérive au-delà d'un rayon réglable, alarme
-   visuelle + sonore. *Le grand classique, évite de finir sur la berge.*
+1. ~~⚓ Alarme de mouillage (anchor watch)~~ — ✅ **réalisé** (module `anchor_watch`).
 2. **🌊 Alarme de hauts-fonds** — alerte dès que la profondeur passe sous un
    seuil réglable (dès que le sondeur réel sera branché). *La Meuse a des
    zones peu profondes — protège l'hélice et la coque.*
