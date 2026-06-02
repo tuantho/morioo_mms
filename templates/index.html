@@ -95,7 +95,7 @@
             
             <div class="lights-container">
                 <button id="btn-pump" class="btn-toggle" onclick="toggleSwitch('pompe_de_cale')">💧 POMPE CALE : OFF</button>
-                <button id="btn-underwater" class="btn-toggle underwater-btn" onclick="toggleSwitch('lumieres_sous_marines')">LUMIÈRES EAU : OFF</button>
+                <button id="btn-underwater" class="btn-toggle underwater-btn" onclick="toggleSwitch('lumieres_sous_marines')">🌊 LUMIÈRES EAU : OFF</button>
             </div>
 
             <div class="anchor-container">
@@ -321,8 +321,8 @@
                 }
 
                 let btnUnder = document.getElementById('btn-underwater');
-                if(data.lumieres_sous_marines) { btnUnder.innerText = "LUMIÈRES EAU : ON"; btnUnder.classList.add('active'); }
-                else { btnUnder.innerText = "LUMIÈRES EAU : OFF"; btnUnder.classList.remove('active'); }
+                if(data.lumieres_sous_marines) { btnUnder.innerText = "🌊 LUMIÈRES EAU : ON"; btnUnder.classList.add('active'); }
+                else { btnUnder.innerText = "🌊 LUMIÈRES EAU : OFF"; btnUnder.classList.remove('active'); }
 
                 // Anchor watch
                 if (data.anchor) {
