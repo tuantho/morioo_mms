@@ -94,7 +94,7 @@
             </div>
             
             <div class="lights-container">
-                <button id="btn-lights" class="btn-toggle" onclick="toggleSwitch('feux_navigation')">FEUX NAV : OFF</button>
+                <button id="btn-pump" class="btn-toggle" onclick="toggleSwitch('pompe_de_cale')">💧 POMPE CALE : OFF</button>
                 <button id="btn-underwater" class="btn-toggle underwater-btn" onclick="toggleSwitch('lumieres_sous_marines')">LUMIÈRES EAU : OFF</button>
             </div>
 
@@ -311,9 +311,14 @@
                     document.getElementById('odo-temps').innerText = h + 'h ' + String(m).padStart(2, '0') + 'm';
                 }
 
-                let btnNav = document.getElementById('btn-lights');
-                if(data.feux_navigation) { btnNav.innerText = "FEUX NAV : ON"; btnNav.classList.add('active'); }
-                else { btnNav.innerText = "FEUX NAV : OFF"; btnNav.classList.remove('active'); }
+                let btnPump = document.getElementById('btn-pump');
+                if (data.pompe_de_cale) {
+                    btnPump.innerText = `💧 POMPE : ${data.pompe_timer}s`;
+                    btnPump.classList.add('active');
+                } else {
+                    btnPump.innerText = '💧 POMPE CALE : OFF';
+                    btnPump.classList.remove('active');
+                }
 
                 let btnUnder = document.getElementById('btn-underwater');
                 if(data.lumieres_sous_marines) { btnUnder.innerText = "LUMIÈRES EAU : ON"; btnUnder.classList.add('active'); }

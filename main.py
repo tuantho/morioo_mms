@@ -313,7 +313,8 @@ anchor_data = {
 boat_data = {
     "vitesse": 0.0,
     "profondeur": 5.0,
-    "feux_navigation": False,
+    "pompe_de_cale": False,
+    "pompe_timer": 0,          # secondes restantes avant arrêt automatique
     "lumieres_sous_marines": False,
     "music_title": "Spotify Déconnecté",
     "music_artist": "",
@@ -449,6 +450,14 @@ async def simulate_boat_and_spotify():
             if len(trail) > 600:
                 trail.pop(0)
             _trail_dirty = True
+
+        # Pompe de cale : décompte auto-OFF
+        if boat_data["pompe_timer"] > 0:
+            boat_data["pompe_timer"] -= 1
+            if boat_data["pompe_timer"] == 0:
+                boat_data["pompe_de_cale"] = False
+                _send_relay(False)
+                log.info("Pompe de cale : arrêt automatique après 30 s")
 
         # Anchor watch : calcul de la dérive depuis le point de mouillage
         if anchor_data["active"] and anchor_data["lat"] is not None:
@@ -637,12 +646,33 @@ def _send_relay(state):
 
 @app.post("/api/switch/{device}")
 def switch_device(device: str):
-    if device not in ("feux_navigation", "lumieres_sous_marines"):
+    if device not in ("pompe_de_cale", "lumieres_sous_marines"):
         return {"status": "error", "message": f"device inconnu : {device}"}
+
+    if device == "pompe_de_cale":
+        # La pompe ne se toggle pas : chaque appui démarre un cycle de 30 s.
+        # Si elle tourne déjà, on la coupe (double-appui = arrêt d'urgence).
+        if boat_data["pompe_de_cale"]:
+            boat_data["pompe_de_cale"] = False
+            boat_data["pompe_timer"]   = 0
+            sent = _send_relay(False)
+            log.info("Pompe de cale : arrêt manuel")
+        else:
+            boat_data["pompe_de_cale"] = True
+            boat_data["pompe_timer"]   = 30
+            sent = _send_relay(True)
+            log.info("Pompe de cale : démarrage (30 s)")
+        return {
+            "status": "ok" if sent else "virtual",
+            "device": device,
+            "state": boat_data["pompe_de_cale"],
+            "timer": boat_data["pompe_timer"],
+            "relay_sent": sent,
+        }
+
+    # lumieres_sous_marines : toggle classique
     new_state = not boat_data[device]
     sent = _send_relay(new_state)
-    # On bascule l'état logiciel dans tous les cas (UI utilisable en mode virtuel),
-    # mais on signale si l'ordre n'a pas pu être envoyé physiquement au relais.
     boat_data[device] = new_state
     return {
         "status": "ok" if sent else "virtual",
