@@ -298,6 +298,18 @@ _trail_dirty = False   # trace modifiée depuis la dernière sauvegarde
 # Trace GPS (max 600 points ≈ 10 min)
 trail = load_trail()
 
+# État de l'alarme de mouillage (anchor watch).
+# Quand active=True, on surveille la distance entre la position courante et le
+# point de mouillage ; si elle dépasse radius_m, alarm passe à True.
+anchor_data = {
+    "active":     False,
+    "lat":        None,
+    "lon":        None,
+    "radius_m":   50,      # rayon par défaut en mètres
+    "alarm":      False,
+    "distance_m": 0.0,
+}
+
 boat_data = {
     "vitesse": 0.0,
     "profondeur": 5.0,
@@ -438,6 +450,20 @@ async def simulate_boat_and_spotify():
                 trail.pop(0)
             _trail_dirty = True
 
+        # Anchor watch : calcul de la dérive depuis le point de mouillage
+        if anchor_data["active"] and anchor_data["lat"] is not None:
+            dist_km = _haversine_km(
+                (boat_data["lat"], boat_data["lon"]),
+                (anchor_data["lat"], anchor_data["lon"])
+            )
+            dist_m = dist_km * 1000.0
+            anchor_data["distance_m"] = round(dist_m, 1)
+            was_alarm = anchor_data["alarm"]
+            anchor_data["alarm"] = dist_m > anchor_data["radius_m"]
+            if anchor_data["alarm"] and not was_alarm:
+                log.warning("⚓ ALARME MOUILLAGE — dérive de %.0f m (rayon %d m)",
+                            dist_m, anchor_data["radius_m"])
+
         # ODO : seuil à 3 km/h pour filtrer le bruit GPS à l'arrêt (~0.2 km/h parasites)
         if vitesse_kmh > 3.0:
             trip_data["km"]       = round(trip_data["km"] + vitesse_kmh / 3600, 4)
@@ -528,7 +554,32 @@ def callback(request: Request):
 
 @app.get("/api/status")
 def get_status():
-    return {**boat_data, "trip": trip_data}
+    return {**boat_data, "trip": trip_data, "anchor": anchor_data}
+
+
+@app.post("/api/anchor/set")
+def set_anchor(radius: int = 50):
+    """Arme l'alarme de mouillage à la position GPS courante."""
+    anchor_data["active"]     = True
+    anchor_data["lat"]        = boat_data["lat"]
+    anchor_data["lon"]        = boat_data["lon"]
+    anchor_data["radius_m"]   = max(10, min(radius, 500))
+    anchor_data["alarm"]      = False
+    anchor_data["distance_m"] = 0.0
+    log.info("⚓ Anchor watch armé à (%.6f, %.6f) rayon %d m",
+             anchor_data["lat"], anchor_data["lon"], anchor_data["radius_m"])
+    return {"status": "ok", "lat": anchor_data["lat"], "lon": anchor_data["lon"],
+            "radius_m": anchor_data["radius_m"]}
+
+
+@app.post("/api/anchor/clear")
+def clear_anchor():
+    """Désarme l'alarme de mouillage."""
+    anchor_data["active"]     = False
+    anchor_data["alarm"]      = False
+    anchor_data["distance_m"] = 0.0
+    log.info("⚓ Anchor watch désarmé")
+    return {"status": "ok"}
 
 @app.get("/api/trail")
 def get_trail():
