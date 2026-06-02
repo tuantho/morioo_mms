@@ -24,3 +24,11 @@ trail.json
 *.elf
 *.map
 bin/
+
+# Android build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/*.iml
+android/.idea/

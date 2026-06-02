@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.morioo.mms'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.morioo.mms"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    // Car App Library — Android Auto (projection téléphone → autoradio)
+    implementation 'androidx.car.app:app:1.4.0'
+
+    // Coroutines pour les appels réseau non-bloquants
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // lifecycleScope sur Screen
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+}
