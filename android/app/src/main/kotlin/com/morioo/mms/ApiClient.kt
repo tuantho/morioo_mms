@@ -8,7 +8,7 @@ import java.net.URL
 object ApiClient {
 
     // Hostname du Raspberry Pi sur le réseau bateau
-    private const val BASE = "http://rasp-boesch:8000"
+    private const val BASE = "http://192.168.75.57:8000"
 
     data class BoatData(
         val vitesseKmh:          Double,
