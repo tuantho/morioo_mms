@@ -24,19 +24,19 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     override fun onGetTemplate(): Template = try {
-        getTemplateInternal()
+        buildTemplate()
     } catch (e: Exception) {
         MessageTemplate.Builder("Erreur : ${e.javaClass.simpleName}\n${e.message}")
-            .setTitle("Boesch 510 — Debug")
+            .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
             .build()
     }
 
-    private fun getTemplateInternal(): Template {
+    private fun buildTemplate(): Template {
 
         if (connectionError && data == null) {
             return MessageTemplate.Builder(
-                "Impossible de joindre le Pi.\n\nVérifie le réseau bateau (Wi-Fi / hotspot)."
+                "Impossible de joindre le Pi.\n\nVérifie le réseau bateau."
             )
                 .setTitle("Boesch 510")
                 .setHeaderAction(Action.APP_ICON)
@@ -47,90 +47,89 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         }
 
-        val d = data
-        val items = ItemList.Builder()
+        val d = data ?: return MessageTemplate.Builder("Connexion au Pi…")
+            .setTitle("Boesch 510")
+            .setHeaderAction(Action.APP_ICON)
+            .build()
 
-        if (d == null) {
-            items.addItem(Row.Builder().setTitle("Connexion au Pi…").build())
-        } else {
+        // ── Lignes d'info ──────────────────────────────────────────────
+        val rows = ItemList.Builder()
 
-            // ⚡ Vitesse + 🌊 Profondeur
-            items.addItem(Row.Builder()
-                .setTitle("⚡ %.1f km/h".format(d.vitesseKmh))
-                .addText("🌊 %.1f m".format(d.profondeur))
+        // Vitesse + Profondeur
+        rows.addItem(Row.Builder()
+            .setTitle("⚡ %.1f km/h".format(d.vitesseKmh))
+            .addText("🌊 Profondeur : %.1f m".format(d.profondeur))
+            .build())
+
+        // Batterie + GPS
+        val batIcon = when {
+            d.batterie >= 12.6 -> "🔋"
+            d.batterie >= 12.0 -> "🪫"
+            else               -> "⚠️"
+        }
+        val gpsText = if (d.gpsFix) "🛰 GPS FIX ✅" else "🛰 GPS : recherche…"
+        rows.addItem(Row.Builder()
+            .setTitle("$batIcon Batterie : %.1f V".format(d.batterie))
+            .addText(gpsText)
+            .build())
+
+        // ODO
+        rows.addItem(Row.Builder()
+            .setTitle("📍 Trip : %.2f km  |  %.2f nm".format(d.tripKm, d.tripKm / 1.852))
+            .build())
+
+        // Spotify
+        val music = when {
+            d.musicArtist.isNotEmpty() -> "${d.musicTitle} — ${d.musicArtist}"
+            d.musicTitle.isNotEmpty()  -> d.musicTitle
+            else -> "Spotify déconnecté"
+        }
+        rows.addItem(Row.Builder()
+            .setTitle("🎵 $music")
+            .setOnClickListener { spotify("next") }
+            .addText("Tap → piste suivante")
+            .build())
+
+        // Météo si dispo
+        if (d.weatherIcon.isNotEmpty()) {
+            rows.addItem(Row.Builder()
+                .setTitle("🌤 Météo : ${d.weatherIcon} ${d.weatherTemp ?: "--"}°C")
                 .build())
-
-            // 🔋 Batterie + 🛰 GPS
-            val batIcon = when {
-                d.batterie >= 12.6 -> "🔋"
-                d.batterie >= 12.0 -> "🪫"
-                else               -> "⚠️"
-            }
-            items.addItem(Row.Builder()
-                .setTitle("$batIcon %.1f V".format(d.batterie))
-                .addText(if (d.gpsFix) "🛰 GPS FIX" else "🛰 NO FIX")
-                .build())
-
-            // 📍 Trip ODO
-            items.addItem(Row.Builder()
-                .setTitle("📍 Trip")
-                .addText("%.2f km  |  %.2f nm".format(d.tripKm, d.tripKm / 1.852))
-                .build())
-
-            // 💧 Pompe de cale (tap pour activer)
-            val pompeLabel = if (d.pompeDeCale)
-                "💧 POMPE ON — ${d.pompeTimer}s restantes"
-            else
-                "💧 Pompe de cale : OFF  →  Appuyer pour démarrer"
-            items.addItem(Row.Builder()
-                .setTitle(pompeLabel)
-                .setOnClickListener { triggerPompe() }
-                .build())
-
-            // 🌊 Feux sous-marins (tap pour toggle)
-            val feuxLabel = if (d.lumieresSousMarine)
-                "🌊 Feux sous-marins : ON  →  Appuyer pour éteindre"
-            else
-                "🌊 Feux sous-marins : OFF  →  Appuyer pour allumer"
-            items.addItem(Row.Builder()
-                .setTitle(feuxLabel)
-                .setOnClickListener { triggerFeux() }
-                .build())
-
-            // 🎵 Spotify
-            val music = when {
-                d.musicArtist.isNotEmpty() -> "🎵 ${d.musicTitle} — ${d.musicArtist}"
-                d.musicTitle.isNotEmpty()  -> "🎵 ${d.musicTitle}"
-                else -> "🎵 Spotify déconnecté"
-            }
-            items.addItem(Row.Builder()
-                .setTitle(music)
-                .addText("⏮ ⏯ ⏭  →  tap pour next")
-                .setOnClickListener { spotify("next") }
-                .build())
-
-            // 🌤 Météo
-            if (d.weatherIcon.isNotEmpty()) {
-                items.addItem(Row.Builder()
-                    .setTitle("🌤 Météo")
-                    .addText("${d.weatherIcon} ${d.weatherTemp ?: "--"}°C")
-                    .build())
-            }
         }
 
-        // ActionStrip : 1 seul bouton autorisé en catégorie POI
-        val strip = ActionStrip.Builder()
+        // ── Boutons de contrôle ────────────────────────────────────────
+        val pompeLabel = if (d.pompeDeCale) "💧 POMPE ON (${d.pompeTimer}s)" else "💧 POMPE CALE"
+        val feuxLabel  = if (d.lumieresSousMarine) "🌊 FEUX ON" else "🌊 FEUX OFF"
+
+        val pane = Pane.Builder()
+            .setItemList(rows.build())
             .addAction(Action.Builder()
-                .setTitle("⏭ Next")
-                .setOnClickListener { spotify("next") }
+                .setTitle(pompeLabel)
+                .setBackgroundColor(
+                    if (d.pompeDeCale) CarColor.GREEN else CarColor.DEFAULT
+                )
+                .setOnClickListener { triggerPompe() }
+                .build())
+            .addAction(Action.Builder()
+                .setTitle(feuxLabel)
+                .setBackgroundColor(
+                    if (d.lumieresSousMarine) CarColor.BLUE else CarColor.DEFAULT
+                )
+                .setOnClickListener { triggerFeux() }
                 .build())
             .build()
 
-        return ListTemplate.Builder()
+        return PaneTemplate.Builder(pane)
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
-            .setSingleList(items.build())
-            .setActionStrip(strip)
+            .setActionStrip(
+                ActionStrip.Builder()
+                    .addAction(Action.Builder()
+                        .setTitle("⏭")
+                        .setOnClickListener { spotify("next") }
+                        .build())
+                    .build()
+            )
             .build()
     }
 
