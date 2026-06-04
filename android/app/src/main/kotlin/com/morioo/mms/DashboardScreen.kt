@@ -23,7 +23,16 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
         }
     }
 
-    override fun onGetTemplate(): Template {
+    override fun onGetTemplate(): Template = try {
+        getTemplateInternal()
+    } catch (e: Exception) {
+        MessageTemplate.Builder("Erreur : ${e.javaClass.simpleName}\n${e.message}")
+            .setTitle("Boesch 510 — Debug")
+            .setHeaderAction(Action.APP_ICON)
+            .build()
+    }
+
+    private fun getTemplateInternal(): Template {
 
         if (connectionError && data == null) {
             return MessageTemplate.Builder(
