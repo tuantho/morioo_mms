@@ -43,7 +43,12 @@ sudo cp $REPO_DIR/install/99-wemos.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
-echo "=== [6/6] Suppression du cron refresh Chromium (remplacé par bouton manuel) ==="
+echo "=== [6/7] mDNS avahi-daemon (résolution rasp-boesch.local sur le réseau bateau) ==="
+sudo apt-get install -y avahi-daemon -qq
+sudo systemctl enable avahi-daemon
+sudo systemctl start avahi-daemon
+
+echo "=== [7/7] Suppression du cron refresh Chromium (remplacé par bouton manuel) ==="
 # On retire l'entrée si elle traîne d'une ancienne install — le reload
 # est maintenant déclenché manuellement en cliquant sur "BOESCH 510".
 crontab -u $USER -l 2>/dev/null | grep -v refresh_chromium | crontab -u $USER - || true
