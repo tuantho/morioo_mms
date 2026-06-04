@@ -105,37 +105,32 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
             }
             items.addItem(Row.Builder()
                 .setTitle(music)
+                .addText("⏮ ⏯ ⏭  →  tap pour next")
+                .setOnClickListener { spotify("next") }
                 .build())
+
+            // 🌤 Météo
+            if (d.weatherIcon.isNotEmpty()) {
+                items.addItem(Row.Builder()
+                    .setTitle("🌤 Météo")
+                    .addText("${d.weatherIcon} ${d.weatherTemp ?: "--"}°C")
+                    .build())
+            }
         }
 
-        // ActionStrip droite : météo + contrôles Spotify
+        // ActionStrip : 1 seul bouton autorisé en catégorie POI
         val strip = ActionStrip.Builder()
-
-        if (d != null && d.weatherIcon.isNotEmpty()) {
-            strip.addAction(Action.Builder()
-                .setTitle("${d.weatherIcon} ${d.weatherTemp ?: "--"}°")
-                .setOnClickListener {}
+            .addAction(Action.Builder()
+                .setTitle("⏭ Next")
+                .setOnClickListener { spotify("next") }
                 .build())
-        }
-
-        strip.addAction(Action.Builder()
-            .setTitle("⏮")
-            .setOnClickListener { spotify("previous") }
-            .build())
-        strip.addAction(Action.Builder()
-            .setTitle("⏯")
-            .setOnClickListener { spotify("play") }
-            .build())
-        strip.addAction(Action.Builder()
-            .setTitle("⏭")
-            .setOnClickListener { spotify("next") }
-            .build())
+            .build()
 
         return ListTemplate.Builder()
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
             .setSingleList(items.build())
-            .setActionStrip(strip.build())
+            .setActionStrip(strip)
             .build()
     }
 
