@@ -1,7 +1,9 @@
 package com.morioo.mms
 
 import android.annotation.SuppressLint
+import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.webkit.*
@@ -34,6 +36,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView = WebView(this).apply {
+            // Fond sombre pendant le chargement
+            setBackgroundColor(Color.parseColor("#0d0812"))
+
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -42,23 +47,40 @@ class MainActivity : AppCompatActivity() {
                 builtInZoomControls = false
                 displayZoomControls = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                // Nécessaire pour certains contenus Canvas/WebGL
+                mediaPlaybackRequiresUserGesture = false
+                // Autoriser les requêtes HTTP depuis une page HTTP
+                allowContentAccess = true
+                allowFileAccess = true
             }
 
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     swipeRefresh.isRefreshing = false
+                    Log.d("Morioo", "Page chargée : $url")
                 }
                 override fun onReceivedError(
                     view: WebView, request: WebResourceRequest, error: WebResourceError
                 ) {
+                    Log.e("Morioo", "Erreur WebView : ${error.description} → ${request.url}")
                     if (request.isForMainFrame) {
                         swipeRefresh.isRefreshing = false
                         view.loadData(errorPage(), "text/html", "utf-8")
                     }
                 }
+                override fun onReceivedHttpError(
+                    view: WebView, request: WebResourceRequest, response: WebResourceResponse
+                ) {
+                    Log.e("Morioo", "HTTP ${response.statusCode} → ${request.url}")
+                }
             }
 
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                    Log.d("Morioo/JS", "${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
+                    return true
+                }
+            }
         }
 
         swipeRefresh.apply {
