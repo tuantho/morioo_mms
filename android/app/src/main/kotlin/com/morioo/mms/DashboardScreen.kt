@@ -78,17 +78,6 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
             .setTitle("📍 Trip : %.2f km  |  %.2f nm".format(d.tripKm, d.tripKm / 1.852))
             .build())
 
-        // Spotify
-        val music = when {
-            d.musicArtist.isNotEmpty() -> "${d.musicTitle} — ${d.musicArtist}"
-            d.musicTitle.isNotEmpty()  -> d.musicTitle
-            else -> "Spotify déconnecté"
-        }
-        rows.addItem(Row.Builder()
-            .setTitle("🎵 $music")
-            .setOnClickListener { spotify("next") }
-            .addText("Tap → piste suivante")
-            .build())
 
         // Météo si dispo
         if (d.weatherIcon.isNotEmpty()) {
@@ -122,14 +111,6 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
         return PaneTemplate.Builder(pane)
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
-            .setActionStrip(
-                ActionStrip.Builder()
-                    .addAction(Action.Builder()
-                        .setTitle("⏭")
-                        .setOnClickListener { spotify("next") }
-                        .build())
-                    .build()
-            )
             .build()
     }
 
