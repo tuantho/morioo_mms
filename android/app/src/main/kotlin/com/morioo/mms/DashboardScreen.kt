@@ -79,7 +79,7 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
                 .build())
 
             // 🌊 Feux sous-marins (tap pour toggle)
-            val feuxLabel = if (d.lumiereSousMarine)
+            val feuxLabel = if (d.lumieresSousMarine)
                 "🌊 Feux sous-marins : ON  →  Appuyer pour éteindre"
             else
                 "🌊 Feux sous-marins : OFF  →  Appuyer pour allumer"
