@@ -17,7 +17,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
 
     companion object {
-        private const val PI_URL = "http://192.168.75.57:8000"
+        private const val PI_URL = "http://rasp-boesch.local:8000"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
