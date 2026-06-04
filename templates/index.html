@@ -53,6 +53,45 @@
         #gps-indicator.nofix { color: #8e6f43; border-color: #3d2510; }
 
         /* Les styles des modules (ex. anchor watch) sont injectés par leur propre JS. */
+
+        /* ── RESPONSIVE TÉLÉPHONE (paysage < 900px de large) ────────────── */
+        @media (max-width: 900px) {
+            body { padding: 4px; gap: 4px; overflow-y: auto; height: auto; min-height: 100vh; }
+
+            #top-bar { height: auto; padding: 4px 8px; }
+            #title   { font-size: 1em; }
+            #clock   { font-size: 1em; }
+            #gps-indicator { font-size: 0.7em; }
+
+            /* Jauges compactes sur une seule ligne */
+            .main-container { grid-template-columns: 1fr; gap: 6px; }
+            .gauges-container { padding: 8px 2px; }
+            .gauge-box { font-size: 0.75em; }
+            .gauge-box canvas { width: 100px !important; height: 100px !important; }
+
+            /* Carte full-width, hauteur fixe */
+            #map { height: 35vh; border-radius: 10px; }
+
+            /* Boutons plus petits */
+            .btn-toggle { padding: 10px 6px; font-size: 0.8em; }
+
+            /* ODO compact */
+            .odo-container { padding: 6px 8px; }
+            .odo-value { font-size: 0.95em; }
+            .odo-label { font-size: 0.65em; }
+
+            /* Barre audio compacte */
+            .bottom-audio-bar {
+                grid-template-columns: 1fr;
+                height: auto;
+                gap: 6px;
+                padding: 8px;
+            }
+            .track-info { font-size: 1em; border-right: none; border-bottom: 1px solid #3d2510; padding-bottom: 6px; }
+            .btn-audio  { padding: 10px 0; font-size: 1.4em; }
+            .playlists  { grid-template-columns: 1fr 1fr; }
+            .btn-pl     { font-size: 0.75em; padding: 6px 2px; }
+        }
     </style>
 </head>
 <body>
@@ -317,6 +356,18 @@
             if (v >= 12.0) return '#f4a100';   // Moyenne — orange
             return '#e63946';                   // Basse — rouge
         }
+
+        // Adapte la taille des canvas selon l'écran
+        function resizeGauges() {
+            const mobile = window.innerWidth <= 900;
+            const size = mobile ? 100 : 220;
+            ['gauge-vitesse','gauge-profondeur','gauge-batterie'].forEach(id => {
+                const c = document.getElementById(id);
+                c.width = size; c.height = size;
+            });
+        }
+        resizeGauges();
+        window.addEventListener('resize', () => { resizeGauges(); refreshData(); });
 
         drawGauge('gauge-vitesse', 0, 0, 50, '#ff4500');
         drawGauge('gauge-profondeur', 0, 0, 10, '#00bfff');
