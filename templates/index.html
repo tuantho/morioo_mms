@@ -173,6 +173,55 @@
             .btn-audio { padding: 15px 0; font-size: 1.8em; }
             .btn-pl    { font-size: 0.85em; }
         }
+
+        /* ── AUTORADIO CARPURIDE 1280×480 (large ET court, ex. ≥ 1100px, ≤ 540px)
+           Tout ultra-compact : jauges ~110px, barre audio ~70px, gaps réduits. */
+        @media (min-width: 1100px) and (max-height: 540px) {
+            body { padding: 3px 5px; gap: 2px; }
+
+            #top-bar    { padding: 0 6px; }
+            #title      { font-size: 0.95em; }
+            #clock      { font-size: 0.95em; letter-spacing: 1px; }
+            #gps-indicator { font-size: 0.62em; padding: 2px 5px; }
+
+            /* Colonnes : panneau gauche 1fr, carte 1.6fr → plus de place pour la carte */
+            .main-container {
+                grid-template-columns: 1fr 1.6fr;
+                flex: 1; min-height: 0; gap: 6px;
+            }
+            .left-panel { height: 100%; gap: 4px; }
+            .gauges-container { flex: 1; min-height: 0; padding: 4px 2px; }
+            .gauge-box  { font-size: 0.68em; }
+
+            #map { height: 100%; max-height: none; }
+
+            .btn-toggle {
+                padding: 5px 4px; font-size: 0.76em;
+                border-width: 2px; border-radius: 7px;
+            }
+
+            .odo-container  { padding: 4px 8px; }
+            .odo-value      { font-size: 0.80em; }
+            .odo-label      { font-size: 0.50em; margin-bottom: 0; }
+            .btn-reset      { padding: 4px 7px; font-size: 0.68em; }
+
+            /* Barre audio ultra-plate, tout sur une ligne */
+            .bottom-audio-bar {
+                display: grid;
+                grid-template-columns: 1.4fr 1.6fr 1fr;
+                height: 70px;
+                padding: 4px 8px; gap: 8px;
+                align-items: center; border-radius: 10px;
+            }
+            .track-info {
+                font-size: 0.88em;
+                border-bottom: none; border-right: 1px solid #3d2510;
+                padding: 0 8px 0 0;
+            }
+            .btn-audio  { padding: 3px 0; font-size: 1.15em; }
+            .playlists  { grid-template-columns: repeat(4, 1fr); height: auto; gap: 4px; }
+            .btn-pl     { font-size: 0.65em; padding: 4px 2px; }
+        }
     </style>
 </head>
 <body>
@@ -452,7 +501,10 @@
             // Largeur disponible par jauge (3 jauges, ~30% chacune) et hauteur dispo
             const byWidth  = Math.floor((container.offsetWidth  - 30) / 3 * 0.88);
             const byHeight = Math.floor( container.offsetHeight * 0.80);
-            const size     = Math.max(60, Math.min(byWidth, byHeight, 220));
+            // Écran autoradio large + court : on plafonne à 110px
+            const isCarScreen = window.innerWidth >= 1100 && window.innerHeight <= 540;
+            const maxSize = isCarScreen ? 110 : 220;
+            const size    = Math.max(60, Math.min(byWidth, byHeight, maxSize));
             ['gauge-vitesse', 'gauge-profondeur', 'gauge-batterie'].forEach(id => {
                 const c = document.getElementById(id);
                 if (c) { c.width = size; c.height = size; }
