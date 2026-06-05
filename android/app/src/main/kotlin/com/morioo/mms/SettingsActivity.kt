@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
@@ -156,6 +157,13 @@ class SettingsActivity : AppCompatActivity() {
             setBackgroundColor(BG)
             addView(root)
         })
+
+        // Focus + clavier automatique sur le champ URL
+        urlField.requestFocus()
+        urlField.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(urlField, InputMethodManager.SHOW_IMPLICIT)
+        }, 200)
     }
 
     // ── Helpers UI ────────────────────────────────────────────────────────────
