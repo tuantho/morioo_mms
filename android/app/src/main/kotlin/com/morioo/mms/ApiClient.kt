@@ -7,8 +7,8 @@ import java.net.URL
 
 object ApiClient {
 
-    // Hostname du Raspberry Pi sur le réseau bateau
-    private const val BASE = "http://rasp-boesch.local:8000"
+    // URL du Pi — configurable via SettingsActivity (AppPreferences)
+    private val BASE get() = AppPreferences.piUrl
 
     data class BoatData(
         val vitesseKmh:          Double,

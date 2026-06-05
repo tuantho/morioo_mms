@@ -1,13 +1,17 @@
 package com.morioo.mms
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.webkit.*
-import android.widget.Toast
+import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
@@ -15,10 +19,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var swipeRefresh: SwipeRefreshLayout
-
-    companion object {
-        private const val PI_URL = "http://rasp-boesch.local:8000"
-    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +39,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView = WebView(this).apply {
-            // Fond sombre pendant le chargement
             setBackgroundColor(Color.parseColor("#0d0812"))
 
             settings.apply {
@@ -50,9 +49,7 @@ class MainActivity : AppCompatActivity() {
                 builtInZoomControls = false
                 displayZoomControls = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                // Nécessaire pour certains contenus Canvas/WebGL
                 mediaPlaybackRequiresUserGesture = false
-                // Autoriser les requêtes HTTP depuis une page HTTP
                 allowContentAccess = true
                 allowFileAccess = true
             }
@@ -86,13 +83,43 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        swipeRefresh.apply {
-            addView(webView)
-            setOnRefreshListener { webView.reload() }
+        swipeRefresh.addView(webView)
+        swipeRefresh.setOnRefreshListener { webView.loadUrl(AppPreferences.piUrl) }
+
+        // ── Bouton ⚙️ flottant (coin haut-droit) ────────────────────────────
+        val settingsBtn = TextView(this).apply {
+            text = "⚙"
+            setTextColor(Color.parseColor("#5B2BE0"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setBackgroundColor(Color.parseColor("#CC0d0812"))   // fond semi-transparent
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            alpha = 0.80f
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+            }
         }
 
-        setContentView(swipeRefresh)
-        webView.loadUrl(PI_URL)
+        val frame = FrameLayout(this).apply {
+            addView(swipeRefresh)
+            addView(settingsBtn, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END
+            ).apply { topMargin = dp(12); marginEnd = dp(12) })
+        }
+
+        setContentView(frame)
+        webView.loadUrl(AppPreferences.piUrl)
+    }
+
+    // Après retour des Settings : recharger avec la nouvelle URL si elle a changé
+    override fun onResume() {
+        super.onResume()
+        val current = webView.url ?: ""
+        val target  = AppPreferences.piUrl
+        if (!current.startsWith(target)) {
+            webView.loadUrl(target)
+        }
     }
 
     // Bouton retour = navigation dans le WebView
@@ -104,20 +131,25 @@ class MainActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    private fun errorPage() = """
-        <html><body style="background:#0d0812;color:#ffeedd;font-family:monospace;
-            display:flex;flex-direction:column;align-items:center;justify-content:center;
-            height:100vh;margin:0;text-align:center;">
-          <div style="font-size:64px">🚤</div>
-          <h2 style="color:#5B2BE0">Boesch 510</h2>
-          <p>Impossible de joindre le Pi.<br>
-             Vérifie que tu es connecté au réseau bateau.</p>
-          <p style="color:#888;font-size:12px">$PI_URL</p>
-          <button onclick="location.reload()"
-            style="margin-top:20px;padding:12px 32px;background:#5B2BE0;color:white;
-                   border:none;border-radius:8px;font-size:16px;cursor:pointer">
-            Réessayer
-          </button>
-        </body></html>
-    """.trimIndent()
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    private fun errorPage(): String {
+        val url = AppPreferences.piUrl
+        return """
+            <html><body style="background:#0d0812;color:#ffeedd;font-family:monospace;
+                display:flex;flex-direction:column;align-items:center;justify-content:center;
+                height:100vh;margin:0;text-align:center;">
+              <div style="font-size:64px">🚤</div>
+              <h2 style="color:#5B2BE0">Boesch 510</h2>
+              <p>Impossible de joindre le Pi.<br>
+                 Vérifie que tu es connecté au réseau bateau.</p>
+              <p style="color:#888;font-size:12px">$url</p>
+              <button onclick="location.reload()"
+                style="margin-top:20px;padding:12px 32px;background:#5B2BE0;color:white;
+                       border:none;border-radius:8px;font-size:16px;cursor:pointer">
+                Réessayer
+              </button>
+            </body></html>
+        """.trimIndent()
+    }
 }

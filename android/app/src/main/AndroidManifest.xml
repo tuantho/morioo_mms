@@ -8,6 +8,7 @@
     <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
 
     <application
+        android:name=".MoriooApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -36,6 +37,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Écran de configuration (adresse Pi, etc.) -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
 
         <!-- Activity Android Auto (Car App Library) -->
         <activity
