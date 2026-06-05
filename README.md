@@ -3,7 +3,7 @@
 ![Dashboard Morioo MMS](docs/screenshot.png)
 
 ## Overview
-Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tourne sur un Raspberry Pi monté en baie 1-DIN, affiché sur un écran Carpuride sans fil.
+Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tourne sur un Raspberry Pi monté en baie 1-DIN, accessible depuis un autoradio **Ainavi K40** (Android Auto via Pixel 8) et depuis n'importe quel navigateur sur le réseau bateau.
 
 **Fonctionnalités :**
 - Jauges temps réel : vitesse (km/h), profondeur (m), tension batterie (V)
@@ -22,7 +22,7 @@ Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tou
 |--------|-------------|
 | Backend | FastAPI (Python 3.13) + `pyserial` |
 | Frontend | HTML5 + Canvas + Leaflet + vanilla JS |
-| Matériel | Raspberry Pi 3, Carpuride, Wemos D1 Mini + shield relais |
+| Matériel | Raspberry Pi 3, Ainavi K40 (Android Auto), Wemos D1 Mini + shield relais |
 | Musique | Spotify API via `spotipy` |
 | Android Auto | Kotlin + Car App Library 1.4.0 (voir `android/`) |
 
@@ -95,7 +95,19 @@ Interface accessible sur `http://<IP>:8000/`
 │   │   ├── ControlsScreen.kt     # Pompe de cale, feux sous-marins
 │   │   ├── MapScreen.kt          # Carte CartoDB Dark (Surface rendering)
 │   │   └── TileCache.kt          # Cache LRU des tuiles OSM (80 tuiles max)
-│   └── app/build.gradle          # AGP 8.3.2, Car App Library 1.4.0
+│   ├── app/src/main/kotlin/com/morioo/mms/
+│   │   ├── MoriooApp.kt          #   Application class (init SharedPreferences)
+│   │   ├── AppPreferences.kt     #   URL Pi configurable (SharedPreferences)
+│   │   ├── MainActivity.kt       #   WebView plein écran (app téléphone)
+│   │   ├── SettingsActivity.kt   #   Écran config adresse Pi + test connexion
+│   │   ├── MoriooCarService.kt   #   Point d'entrée CarAppService
+│   │   ├── MoriooSession.kt      #   Session Android Auto
+│   │   ├── ApiClient.kt          #   HTTP vers le Pi
+│   │   ├── DashboardScreen.kt    #   PaneTemplate (vitesse, profondeur, batterie…)
+│   │   ├── ControlsScreen.kt     #   Pompe, feux
+│   │   ├── MapScreen.kt          #   Carte CartoDB Dark (Surface rendering)
+│   │   └── TileCache.kt          #   Cache LRU tuiles OSM (80 max)
+│   └── app/build.gradle          # AGP 8.7.3, Kotlin 2.2.10, Car App Library 1.4.0
 ├── tests/
 │   └── smoke_test.py        # Smoke test : démarre l'app et vérifie les routes
 ├── docs/
@@ -137,35 +149,42 @@ Routes fournies par des **modules** (cf. `modules/`) :
 
 ---
 
-## Android Auto — Application Boesch 510
+## Application Android — Boesch 510
 
-L'application Android Auto (`android/`) permet de contrôler le bateau depuis
-l'autoradio **Ainavi** (ou tout autre autoradio compatible Android Auto) via
-la projection USB du Pixel 8.
+L'application Android (`android/`) fait **deux choses en un seul APK** :
 
-### Architecture
+1. **App téléphone** : WebView plein écran → charge le dashboard Pi (`http://rasp-boesch.local:8000`)
+2. **Android Auto** : interface Car App Library projetée sur l'**Ainavi K40** via USB
+
+### Architecture réseau
 
 ```
 Hotspot Pixel 8
-    ├── Raspberry Pi (rasp-boesch:8000) ← API HTTP
-    └── Ainavi (Android Auto) ← USB ← Pixel 8
+    ├── Raspberry Pi (rasp-boesch.local:8000) ← API HTTP
+    └── Ainavi K40 (Android Auto) ← USB ← Pixel 8
 ```
 
-### Fonctionnalités
+### Fonctionnalités Android Auto
 
 | Écran | Contenu |
 |-------|---------|
-| **Dashboard** | Vitesse, profondeur, batterie, GPS, ODO, musique, météo |
-| **Contrôles** | Pompe de cale (ON 30 s), feux sous-marins toggle |
-| **Carte** | Carte CartoDB Dark + trace GPS, rendu sur Surface Android Auto |
+| **Dashboard** | Vitesse, profondeur, batterie, GPS, ODO, météo |
+| **Contrôles** | Boutons pompe de cale + feux sous-marins (colorés selon état) |
+
+### Fichiers principaux
+
+| Fichier | Rôle |
+|---------|------|
+| `MainActivity.kt` | WebView plein écran (app téléphone) |
+| `SettingsActivity.kt` | Config IP/URL du Pi + bouton "Tester la connexion" |
+| `AppPreferences.kt` | Stockage SharedPreferences de l'URL Pi |
+| `DashboardScreen.kt` | PaneTemplate Android Auto |
+| `MoriooCarService.kt` | Point d'entrée CarAppService |
+| `ApiClient.kt` | HTTP vers le Pi (lit `AppPreferences.piUrl`) |
 
 ### Build & installation
 
 ```bash
-# Dans Android Studio : ouvrir le dossier android/
-# → Build > Build Bundle(s)/APK > Build APK
-
-# Ou en ligne de commande (nécessite Android SDK)
 cd android
 ./gradlew assembleDebug
 # APK : app/build/outputs/apk/debug/app-debug.apk
@@ -174,14 +193,22 @@ cd android
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> **Prérequis :** Java 17, Android SDK 35, Gradle 8.6 (wrapper inclus).
+> **Prérequis :** Java 17, Android SDK 35, Kotlin 2.2.10, AGP 8.7.3, Gradle 8.11.1.
 
 ### Connexion réseau
 
-Le Pi doit être joignable via `rasp-boesch` depuis le téléphone. Pour ça,
-configure le Pi en client Wi-Fi sur le hotspot du Pixel 8 (ou un routeur
-de bord commun). Si le hostname ne résout pas, modifier `BASE` dans
-`ApiClient.kt` avec l'IP fixe du Pi.
+Le Pi se connecte au hotspot du Pixel 8. Si `rasp-boesch.local` ne résout pas
+(DNS_PROBE_FINISHED_NXDOMAIN), ouvrir l'app → bouton **⚙** → entrer l'IP directe
+du Pi (ex : `http://192.168.43.100:8000`) et taper "Tester".
+
+> Le Pi doit avoir `avahi-daemon` installé pour la résolution mDNS (`restore.sh` le fait).
+
+### Android Auto en voiture — sideload
+
+Google bloque les APKs non-Play-Store en voiture réelle. Solutions :
+- **AAAD** (Android Auto Apps Downloader) : patche AA pour accepter les sideloads — recommandé
+- Ou : `adb install -i com.android.vending app-debug.apk` (simule Play Store)
+- Activer le mode développeur AA : Paramètres AA → taper 10× sur la version → "Sources inconnues"
 
 ---
 
