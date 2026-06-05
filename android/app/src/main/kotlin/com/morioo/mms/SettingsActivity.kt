@@ -70,7 +70,9 @@ class SettingsActivity : AppCompatActivity() {
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
-        root.addView(urlField, lpMatch(top = dp(4), bottom = dp(10)))
+        root.addView(urlField, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+            topMargin = dp(4); bottomMargin = dp(10)
+        })
 
         // ── Statut test ───────────────────────────────────────────────────────
         val statusView = TextView(this).apply {
