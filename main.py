@@ -96,7 +96,7 @@ def _save_refresh_token(new_rt: str) -> None:
         lines = _ENV_PATH.read_text().splitlines()
         lines = [l for l in lines if not l.startswith("SPOTIFY_REFRESH_TOKEN")]
         lines.append(f"SPOTIFY_REFRESH_TOKEN={new_rt}")
-        tmp = _ENV_PATH.with_suffix(".env.tmp")
+        tmp = _ENV_PATH.with_name(_ENV_PATH.name + ".tmp")
         tmp.write_text("\n".join(lines) + "\n")
         tmp.rename(_ENV_PATH)
     except Exception as e:
@@ -137,7 +137,7 @@ def _fetch_now_playing_sync(sp_client):
 async def get_spotify_client():
     """Version async : exécute get_spotify_client_sync dans un thread avec timeout."""
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await asyncio.wait_for(
             loop.run_in_executor(None, get_spotify_client_sync),
             timeout=6.0
@@ -340,7 +340,7 @@ def _parse_nmea_coord(raw, direction):
 
 async def read_gps():
     global gps_has_fix, gps_serial
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     while True:
         if not gps_serial:
             # (Re)connexion à chaud : permet de brancher/rebrancher le GPS
@@ -484,7 +484,7 @@ async def simulate_boat_and_spotify():
                     # Appel réseau exécuté dans un thread avec timeout : un réseau
                     # lent/coupé ne doit JAMAIS bloquer l'event loop (sinon jauges,
                     # GPS et /api/status se figent toutes les 10 s).
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
                     title, artist = await asyncio.wait_for(
                         loop.run_in_executor(None, _fetch_now_playing_sync, sp_client),
                         timeout=6.0
@@ -641,10 +641,9 @@ def switch_device(device: str):
 
 @app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
-    """Pilote le device Spotify actif (téléphone / Android Auto).
-    Pas de current_playback() : on envoie la commande sans device_id,
-    Spotify la route vers le device actif (Android Auto, Raspotify…).
-    Si rien ne joue, l'API retourne une erreur qu'on logue sans crasher."""
+    """Pilote le device Spotify actif (téléphone / Raspotify).
+    Récupère le device_id en cours via current_playback() pour cibler
+    explicitement le bon device. Erreurs Spotipy loguées sans crasher."""
     sp = get_spotify_client_sync()
     if not sp:
         return {"status": "error", "message": "Spotify non connecté"}
