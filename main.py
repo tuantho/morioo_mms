@@ -71,7 +71,7 @@ def _build_sp_oauth():
     alors de démarrer. On préfère démarrer sans Spotify (dégradation
     gracieuse, comme pour le GPS/Wemos absents)."""
     if not CLIENT_ID or not CLIENT_SECRET:
-        print("⚠️ Spotify non configuré (.env absent/incomplet) — fonctionnalité désactivée.")
+        log.warning("Spotify non configuré (.env absent/incomplet) — fonctionnalité désactivée.")
         return None
     return SpotifyOAuth(
         client_id=CLIENT_ID,
@@ -88,6 +88,20 @@ sp_oauth = _build_sp_oauth()
 # Cache du token en mémoire — refresh seulement quand expiré (~1×/heure)
 _spotify_token_info = None
 
+_ENV_PATH = Path("/home/ode/boesch_os/.env")
+
+def _save_refresh_token(new_rt: str) -> None:
+    """Écrit le refresh token dans .env (écriture atomique .tmp→rename)."""
+    try:
+        lines = _ENV_PATH.read_text().splitlines()
+        lines = [l for l in lines if not l.startswith("SPOTIFY_REFRESH_TOKEN")]
+        lines.append(f"SPOTIFY_REFRESH_TOKEN={new_rt}")
+        tmp = _ENV_PATH.with_suffix(".env.tmp")
+        tmp.write_text("\n".join(lines) + "\n")
+        tmp.rename(_ENV_PATH)
+    except Exception as e:
+        log.warning("Impossible d'écrire le refresh token dans .env : %s", e)
+
 def get_spotify_client_sync():
     """Retourne un client Spotipy prêt à l'emploi, ou None si impossible."""
     global _spotify_token_info, REFRESH_TOKEN
@@ -100,11 +114,7 @@ def get_spotify_client_sync():
             new_rt = _spotify_token_info.get("refresh_token")
             if new_rt and new_rt != REFRESH_TOKEN:
                 REFRESH_TOKEN = new_rt
-                env_path = Path("/home/ode/boesch_os/.env")
-                lines = env_path.read_text().splitlines()
-                lines = [l for l in lines if not l.startswith("SPOTIFY_REFRESH_TOKEN")]
-                lines.append(f"SPOTIFY_REFRESH_TOKEN={new_rt}")
-                env_path.write_text("\n".join(lines) + "\n")
+                _save_refresh_token(new_rt)
         # requests_timeout : sinon un réseau lent (fréquent en bateau) peut faire
         # traîner les appels Spotify indéfiniment.
         return spotipy.Spotify(auth=_spotify_token_info["access_token"], requests_timeout=5)
@@ -520,11 +530,7 @@ def callback(request: Request):
     try:
         token_info = sp_oauth.get_access_token(code)
         new_refresh = token_info["refresh_token"]
-        env_path = Path("/home/ode/boesch_os/.env")
-        lines = env_path.read_text().splitlines()
-        lines = [l for l in lines if not l.startswith("SPOTIFY_REFRESH_TOKEN")]
-        lines.append(f"SPOTIFY_REFRESH_TOKEN={new_refresh}")
-        env_path.write_text("\n".join(lines) + "\n")
+        _save_refresh_token(new_refresh)
         global REFRESH_TOKEN
         REFRESH_TOKEN = new_refresh
     except Exception as e:
@@ -632,23 +638,6 @@ def switch_device(device: str):
         "relay_sent": sent,
     }
 
-@app.get("/api/spotify/debug")
-def spotify_debug():
-    """Retourne les devices Spotify visibles + ce qui joue actuellement."""
-    sp = get_spotify_client_sync()
-    if not sp:
-        return {"status": "error", "message": "Spotify non connecté"}
-    try:
-        devices = sp.devices()
-        playback = sp.current_playback()
-        return {
-            "devices": devices.get("devices", []) if devices else [],
-            "current_device": playback.get("device") if playback else None,
-            "is_playing": playback.get("is_playing") if playback else None,
-            "track": playback["item"]["name"] if playback and playback.get("item") else None,
-        }
-    except Exception as e:
-        return {"status": "error", "message": repr(e)}
 
 @app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
@@ -665,7 +654,7 @@ def spotify_action(action: str, playlist_id: str = None):
         # et peut choisir Raspotify (inactif) au lieu du téléphone.
         playback = sp.current_playback()
         device_id = playback["device"]["id"] if playback and playback.get("device") else None
-        logger.debug("Spotify action %r on device_id=%s", action, device_id)
+        log.debug("Spotify action %r on device_id=%s", action, device_id)
         if action == "play":
             sp.start_playback(device_id=device_id)
         elif action == "pause":
@@ -681,7 +670,7 @@ def spotify_action(action: str, playlist_id: str = None):
     except Exception as e:
         msg = repr(e)          # repr() est toujours safe, contrairement à str()
         try:
-            logger.warning("Spotify action %r failed: %s", action, msg)
+            log.warning("Spotify action %r failed: %s", action, msg)
         except Exception:
             pass               # ne jamais laisser le logger planter la route
         return {"status": "error", "message": msg}
