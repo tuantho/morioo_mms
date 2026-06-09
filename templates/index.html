@@ -6,14 +6,77 @@
     <title>Morioo MMS</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        /* ── Variables de thème ─────────────────────────────────────────────── */
+        :root {
+            /* Nuit (défaut) */
+            --c-bg:           #0d0802;
+            --c-panel:        #160e05;
+            --c-card:         #1e1206;
+            --c-border:       #8e6f43;
+            --c-sep:          #3d2510;
+            --c-text:         #ffeedd;
+            --c-label:        #d4a373;
+            --c-muted:        #8e6f43;
+            --c-btn:          #5c1d06;
+            --c-btn-fire:     #3d1010;
+            --c-btn-audio:    #3d2510;
+            --c-map-bg:       #0c1117;
+            --c-gps-fix:      #38b000;
+            --c-gps-nofix:    #8e6f43;
+            --c-gps-nbord:    #3d2510;
+            --c-pump-active:  #2b5c06;
+            --c-pump-glow:    #38b000;
+            --c-light-active: #005f73;
+            --c-light-glow:   #0a9396;
+            --c-act-bg:       #d4a373;
+            --c-act-fg:       #221407;
+            /* Canvas jauges */
+            --c-g-dial: #050301;
+            --c-g-ring: #8e6f43;
+            --c-g-arc:  #d4a373;
+            --c-g-tick: #aa8259;
+            --c-g-hub:  #8e6f43;
+            --c-g-val:  #ffffff;
+        }
+        [data-theme="day"] {
+            --c-bg:           #ddd7c0;
+            --c-panel:        #eee8d0;
+            --c-card:         #f8f2e0;
+            --c-border:       #7a5e30;
+            --c-sep:          #b8a060;
+            --c-text:         #140e00;
+            --c-label:        #3c2800;
+            --c-muted:        #6a5028;
+            --c-btn:          #b86018;
+            --c-btn-fire:     #9a2e18;
+            --c-btn-audio:    #a07030;
+            --c-map-bg:       #c8c4b0;
+            --c-gps-fix:      #1a7200;
+            --c-gps-nofix:    #7a5e30;
+            --c-gps-nbord:    #a08050;
+            --c-pump-active:  #1d6a00;
+            --c-pump-glow:    #28a000;
+            --c-light-active: #005060;
+            --c-light-glow:   #007080;
+            --c-act-bg:       #7a5e30;
+            --c-act-fg:       #f8f2e0;
+            /* Canvas jauges */
+            --c-g-dial: #e8e0c8;
+            --c-g-ring: #7a5e30;
+            --c-g-arc:  #5a4010;
+            --c-g-tick: #4a3010;
+            --c-g-hub:  #7a5e30;
+            --c-g-val:  #140e00;
+        }
+
         /* ── Reset ──────────────────────────────────────────────────────────── */
         * { box-sizing: border-box; }
 
         /* ── BASE : Mobile portrait (défaut / mobile-first) ─────────────────
            Sur téléphone en portrait on scrolle verticalement.               */
         body {
-            background-color: #0d0802;
-            color: #ffeedd;
+            background-color: var(--c-bg);
+            color: var(--c-text);
             font-family: 'Courier New', monospace;
             margin: 0; padding: 6px;
             display: flex; flex-direction: column; gap: 6px;
@@ -26,14 +89,19 @@
             display: flex; justify-content: space-between; align-items: center;
             flex-shrink: 0; padding: 2px 6px;
         }
-        #title   { font-size: clamp(0.85em, 3.5vw, 1.4em); color: #d4a373; font-weight: bold; cursor: pointer; }
-        #clock   { font-size: clamp(0.85em, 3.5vw, 1.6em); color: #8e6f43; font-weight: bold; letter-spacing: 2px; }
+        #title   { font-size: clamp(0.85em, 3.5vw, 1.4em); color: var(--c-label); font-weight: bold; cursor: pointer; }
+        #clock   { font-size: clamp(0.85em, 3.5vw, 1.6em); color: var(--c-muted); font-weight: bold; letter-spacing: 2px; }
         #gps-indicator {
             font-size: clamp(0.6em, 2vw, 0.8em); font-weight: bold;
-            padding: 3px 8px; border-radius: 6px; border: 1px solid #3d2510;
+            padding: 3px 8px; border-radius: 6px; border: 1px solid var(--c-gps-nbord);
         }
-        #gps-indicator.fix   { color: #38b000; border-color: #38b000; }
-        #gps-indicator.nofix { color: #8e6f43; border-color: #3d2510; }
+        #gps-indicator.fix   { color: var(--c-gps-fix);   border-color: var(--c-gps-fix); }
+        #gps-indicator.nofix { color: var(--c-gps-nofix); border-color: var(--c-gps-nbord); }
+        #btn-theme {
+            background: none; border: 1px solid var(--c-border);
+            border-radius: 6px; padding: 2px 8px; cursor: pointer;
+            font-size: clamp(0.9em, 2.5vw, 1.1em); line-height: 1;
+        }
 
         /* ── Conteneur principal : 1 colonne en mobile ──────────────────── */
         .main-container {
@@ -46,12 +114,12 @@
         /* ── Jauges ──────────────────────────────────────────────────────── */
         .gauges-container {
             display: flex; justify-content: space-around; align-items: center;
-            background-color: #160e05; border: 3px solid #8e6f43;
+            background-color: var(--c-panel); border: 3px solid var(--c-border);
             border-radius: 14px; padding: 10px 5px; min-height: 110px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.9);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
         }
         .gauge-box {
-            text-align: center; font-weight: bold; color: #d4a373;
+            text-align: center; font-weight: bold; color: var(--c-label);
             font-size: clamp(0.6em, 2vw, 1.1em); width: 32%;
         }
         canvas { display: block; margin: 0 auto; }
@@ -59,40 +127,40 @@
         /* ── Boutons relais ──────────────────────────────────────────────── */
         .lights-container { display: flex; gap: 8px; width: 100%; }
         .btn-toggle {
-            background-color: #5c1d06; color: #ffeedd;
-            border: 3px solid #8e6f43;
+            background-color: var(--c-btn); color: var(--c-text);
+            border: 3px solid var(--c-border);
             padding: clamp(8px, 2.5vw, 18px) clamp(4px, 1vw, 12px);
             font-size: clamp(0.72em, 2vw, 1.1em);
             border-radius: 10px; cursor: pointer; font-weight: bold;
             flex: 1; text-transform: uppercase;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        .btn-toggle.active { background-color: #2b5c06; box-shadow: 0 0 15px #38b000; }
-        .btn-toggle.underwater-btn.active { background-color: #005f73; box-shadow: 0 0 15px #0a9396; }
+        .btn-toggle.active { background-color: var(--c-pump-active); box-shadow: 0 0 15px var(--c-pump-glow); }
+        .btn-toggle.underwater-btn.active { background-color: var(--c-light-active); box-shadow: 0 0 15px var(--c-light-glow); }
 
         /* ── ODO ─────────────────────────────────────────────────────────── */
         .odo-container {
             display: flex; align-items: center; gap: 8px;
-            background-color: #160e05; border: 3px solid #8e6f43;
+            background-color: var(--c-panel); border: 3px solid var(--c-border);
             border-radius: 10px; padding: 8px 12px; width: 100%;
         }
-        .odo-label { color: #8e6f43; font-size: clamp(0.55em, 1.5vw, 0.75em); text-transform: uppercase; margin-bottom: 2px; }
-        .odo-value { color: #fff; font-size: clamp(0.8em, 2.5vw, 1.2em); font-weight: bold; }
-        .odo-block { flex: 1; text-align: center; border-right: 1px solid #3d2510; }
+        .odo-label { color: var(--c-muted); font-size: clamp(0.55em, 1.5vw, 0.75em); text-transform: uppercase; margin-bottom: 2px; }
+        .odo-value { color: var(--c-text); font-size: clamp(0.8em, 2.5vw, 1.2em); font-weight: bold; }
+        .odo-block { flex: 1; text-align: center; border-right: 1px solid var(--c-sep); }
         .odo-block:last-of-type { border-right: none; }
         .btn-reset {
-            background-color: #3d1010; color: #ffeedd; border: 2px solid #8e4343;
+            background-color: var(--c-btn-fire); color: var(--c-text); border: 2px solid var(--c-border);
             padding: 7px 10px; font-size: clamp(0.65em, 1.8vw, 0.85em);
             border-radius: 8px; cursor: pointer; font-weight: bold; white-space: nowrap;
         }
-        .btn-reset:active { background-color: #8e4343; }
+        .btn-reset:active { background-color: var(--c-border); }
 
         /* ── Carte ───────────────────────────────────────────────────────── */
         #map {
             width: 100%;
             /* Mobile portrait : hauteur proportionnelle à la largeur */
             height: 55vw; min-height: 180px; max-height: 380px;
-            border: 3px solid #8e6f43; border-radius: 14px; background-color: #0c1117;
+            border: 3px solid var(--c-border); border-radius: 14px; background-color: var(--c-map-bg);
         }
 
         /* ── Modules bar ─────────────────────────────────────────────────── */
@@ -101,25 +169,25 @@
         /* ── Barre audio ─────────────────────────────────────────────────── */
         .bottom-audio-bar {
             display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
-            background-color: #1e1206; border: 3px solid #8e6f43;
+            background-color: var(--c-card); border: 3px solid var(--c-border);
             border-radius: 14px; padding: 8px;
         }
         .track-info {
-            font-size: clamp(0.9em, 3vw, 1.4em); color: #fff; font-weight: bold;
+            font-size: clamp(0.9em, 3vw, 1.4em); color: var(--c-text); font-weight: bold;
             padding: 2px 6px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            border-bottom: 1px solid #3d2510;
+            border-bottom: 1px solid var(--c-sep);
         }
         .audio-controls { display: flex; justify-content: space-between; gap: 8px; }
         .btn-audio {
-            background-color: #3d2510; color: #d4a373; border: 2px solid #8e6f43;
+            background-color: var(--c-btn-audio); color: var(--c-label); border: 2px solid var(--c-border);
             padding: clamp(8px, 2vw, 15px) 0; font-size: clamp(1.2em, 4vw, 1.8em);
             border-radius: 10px; cursor: pointer; flex: 1;
             display: flex; justify-content: center; align-items: center;
         }
-        .btn-audio:active { background-color: #d4a373; color: #221407; }
+        .btn-audio:active { background-color: var(--c-act-bg); color: var(--c-act-fg); }
         .playlists { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
         .btn-pl {
-            background-color: #0d0802; color: #d4a373; border: 2px solid #8e6f43;
+            background-color: var(--c-bg); color: var(--c-label); border: 2px solid var(--c-border);
             padding: 8px 4px; font-size: clamp(0.65em, 1.8vw, 0.85em);
             border-radius: 6px; font-weight: bold; text-align: center; cursor: pointer;
         }
@@ -144,7 +212,7 @@
                 display: grid; grid-template-columns: 1.2fr 1.5fr 1fr;
                 height: 17vh; padding: 6px; gap: 8px; align-items: center;
             }
-            .track-info { border-bottom: none; border-right: 1px solid #3d2510; padding-bottom: 0; font-size: 1em; }
+            .track-info { border-bottom: none; border-right: 1px solid var(--c-sep); padding-bottom: 0; font-size: 1em; }
             .playlists { grid-template-columns: 1fr 1fr; height: 100%; align-content: center; }
             .btn-audio { padding: 8px 0; font-size: 1.3em; }
             .btn-pl    { font-size: 0.75em; }
@@ -168,7 +236,7 @@
                 display: grid; grid-template-columns: 1.2fr 1.5fr 1fr;
                 height: 18vh; padding: 10px; gap: 15px; align-items: center;
             }
-            .track-info { font-size: 1.4em; border-bottom: none; border-right: 1px solid #3d2510; padding-bottom: 0; }
+            .track-info { font-size: 1.4em; border-bottom: none; border-right: 1px solid var(--c-sep); padding-bottom: 0; }
             .playlists { grid-template-columns: 1fr 1fr; height: 100%; align-content: center; }
             .btn-audio { padding: 15px 0; font-size: 1.8em; }
             .btn-pl    { font-size: 0.85em; }
@@ -227,7 +295,7 @@
             }
             .track-info {
                 font-size: 0.82em; flex-shrink: 0;
-                border-bottom: 1px solid #3d2510; border-right: none;
+                border-bottom: 1px solid var(--c-sep); border-right: none;
                 padding: 0 0 5px; white-space: normal;
                 overflow: hidden;
                 display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -249,6 +317,7 @@
     <div id="top-bar">
         <div id="title" onclick="location.reload()" title="Recharger la page">BOESCH 510</div>
         <div id="gps-indicator" class="nofix">🛰 NO FIX</div>
+        <button id="btn-theme" onclick="toggleTheme()" title="Basculer jour/nuit">☀️</button>
         <div id="clock">00:00:00</div>
     </div>
 
@@ -318,7 +387,8 @@
 
         // --- CARTE MAP ---
         var map = L.map('map', {zoomControl: false}).setView([50.4901, 5.1002], 17);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        // Tuile de fond — swappée au changement de thème (toujours derrière OpenSeaMap)
+        var _baseTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
         L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
 
         var boatMarker = L.circleMarker([50.4901, 5.1002], {
@@ -345,9 +415,10 @@
                 const btn = L.DomUtil.create('button', '');
                 btn.innerHTML = '🎯 Recentrer';
                 btn.title = 'Recentrer sur le bateau';
-                btn.style.cssText = 'background:#160e05;color:#d4a373;border:2px solid #8e6f43;'
+                btn.className = 'btn-recenter';
+                btn.style.cssText = 'background:var(--c-panel);color:var(--c-label);border:2px solid var(--c-border);'
                     + 'border-radius:10px;padding:12px 16px;font-size:1em;font-weight:bold;'
-                    + 'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.7);display:none;';
+                    + 'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:none;';
                 L.DomEvent.disableClickPropagation(btn);
                 L.DomEvent.on(btn, 'click', function () {
                     setFollow(true);
@@ -364,6 +435,11 @@
         // --- DESSIN DES JAUGES RÉTRO ---
         // Les textes sont mis à l'échelle du canvas pour rester lisibles
         // quelle que soit la taille calculée par resizeGauges().
+        // Lecture des variables CSS de thème pour les jauges canvas
+        function cssVar(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
         function drawGauge(canvasId, value, minVal, maxVal, colorNeedle) {
             const canvas = document.getElementById(canvasId);
             const ctx = canvas.getContext('2d');
@@ -377,13 +453,13 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Fond noir du cadran
+            // Fond du cadran
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-            ctx.fillStyle = '#050301';
+            ctx.fillStyle = cssVar('--c-g-dial');
             ctx.fill();
             ctx.lineWidth = Math.max(2, canvas.width * 0.022);
-            ctx.strokeStyle = '#8e6f43';
+            ctx.strokeStyle = cssVar('--c-g-ring');
             ctx.stroke();
 
             // Arc de graduation
@@ -392,11 +468,11 @@
             ctx.beginPath();
             ctx.arc(cx, cy, radius - canvas.width * 0.063, startAngle, endAngle);
             ctx.lineWidth = Math.max(1, canvas.width * 0.014);
-            ctx.strokeStyle = '#d4a373';
+            ctx.strokeStyle = cssVar('--c-g-arc');
             ctx.stroke();
 
             // Repères min / max
-            ctx.fillStyle = '#aa8259';
+            ctx.fillStyle = cssVar('--c-g-tick');
             ctx.font = `bold ${tickFontSize}px Courier New`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -423,14 +499,14 @@
             // Moyeu
             ctx.beginPath();
             ctx.arc(cx, cy, canvas.width * 0.05, 0, 2 * Math.PI);
-            ctx.fillStyle = '#8e6f43';
+            ctx.fillStyle = cssVar('--c-g-hub');
             ctx.fill();
 
             // Valeur numérique (par-dessus tout)
             ctx.save();
-            ctx.shadowColor = '#000000';
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
             ctx.shadowBlur  = Math.round(canvas.width * 0.027);
-            ctx.fillStyle   = '#ffffff';
+            ctx.fillStyle   = cssVar('--c-g-val');
             ctx.font        = `bold ${valFontSize}px Courier New`;
             ctx.textAlign   = 'center';
             ctx.textBaseline = 'middle';
@@ -544,6 +620,30 @@
         drawGauge('gauge-vitesse',    0,    0,  50, '#ff4500');
         drawGauge('gauge-profondeur', 0,    0,  10, '#00bfff');
         drawGauge('gauge-batterie',   12.0, 10, 15, '#38b000');
+
+        // --- THÈME JOUR / NUIT ---
+        function applyTheme(theme) {
+            const isDay = (theme === 'day');
+            document.documentElement.setAttribute('data-theme', isDay ? 'day' : 'night');
+            document.getElementById('btn-theme').textContent = isDay ? '🌙' : '☀️';
+            // Swap tuile de fond carte
+            if (_baseTile) map.removeLayer(_baseTile);
+            _baseTile = L.tileLayer(
+                isDay
+                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            ).addTo(map);
+            _baseTile.bringToBack();
+            // Redessiner les jauges avec les nouvelles couleurs
+            refreshData();
+        }
+        function toggleTheme() {
+            const isDay = document.documentElement.getAttribute('data-theme') !== 'day';
+            localStorage.setItem('theme', isDay ? 'day' : 'night');
+            applyTheme(isDay ? 'day' : 'night');
+        }
+        // Appliquer le thème sauvegardé (nuit par défaut)
+        applyTheme(localStorage.getItem('theme') || 'night');
 
         setInterval(refreshData,  1000);
         setInterval(refreshTrail, 5000);
