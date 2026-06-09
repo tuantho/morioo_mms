@@ -656,8 +656,12 @@ def spotify_action(action: str, playlist_id: str = None):
         else:
             return {"status": "error", "message": f"action inconnue: {action}"}
     except Exception as e:
-        logger.warning("Spotify action '%s' failed: %s", action, str(e))
-        return {"status": "error", "message": str(e)}
+        msg = repr(e)          # repr() est toujours safe, contrairement à str()
+        try:
+            logger.warning("Spotify action %r failed: %s", action, msg)
+        except Exception:
+            pass               # ne jamais laisser le logger planter la route
+        return {"status": "error", "message": msg}
     return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
