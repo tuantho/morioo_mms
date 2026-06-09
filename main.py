@@ -679,42 +679,23 @@ def switch_device(device: str):
         "relay_sent": sent,
     }
 
-PREFERRED_DEVICE = "Boesch 510 Audio"
-
-def _get_device_id(sp):
-    """Retourne toujours l'id de PREFERRED_DEVICE si disponible, sinon le device actif."""
-    try:
-        devices = sp.devices().get("devices", [])
-        for d in devices:
-            if d["name"] == PREFERRED_DEVICE:
-                return d["id"]
-        # Fallback : device actif, puis premier de la liste
-        for d in devices:
-            if d["is_active"]:
-                return d["id"]
-        if devices:
-            return devices[0]["id"]
-    except Exception:
-        pass
-    return None
-
 @app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
+    """Pilote le device Spotify actif (téléphone / Android Auto) sans forcer de device."""
     sp = get_spotify_client_sync()
     if not sp:
         return {"status": "error", "message": "Spotify non connecté"}
     try:
-        device_id = _get_device_id(sp)
         if action == "play":
-            sp.start_playback(device_id=device_id)
+            sp.start_playback()
         elif action == "pause":
-            sp.pause_playback(device_id=device_id)
+            sp.pause_playback()
         elif action == "next":
-            sp.next_track(device_id=device_id)
+            sp.next_track()
         elif action == "previous":
-            sp.previous_track(device_id=device_id)
+            sp.previous_track()
         elif action == "playlist" and playlist_id:
-            sp.start_playback(device_id=device_id, context_uri=f"spotify:playlist:{playlist_id}")
+            sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
     except Exception as e:
         return {"status": "error", "message": str(e)}
     return {"status": "ok"}
