@@ -697,6 +697,7 @@ def spotify_action(action: str, playlist_id: str = None):
         elif action == "playlist" and playlist_id:
             sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
     except Exception as e:
+        logger.warning("Spotify action '%s' failed: %s", action, e)
         return {"status": "error", "message": str(e)}
     return {"status": "ok"}
 
