@@ -32,13 +32,14 @@
       padding: clamp(6px,2vw,14px) clamp(4px,1vw,12px);
       border-radius:10px; font-family:inherit;
       box-shadow:0 4px 6px rgba(0,0,0,0.3);
-      display:flex; flex-direction:column;
-      justify-content:center; align-items:center; gap:4px; }
+      display:flex; flex-direction:row;
+      justify-content:center; align-items:center; gap:8px; }
+    .anchor-info { display:flex; flex-direction:column; align-items:center; }
     .anchor-info-label { color:var(--c-muted,#8e6f43); font-size:0.60em; text-transform:uppercase; }
     .anchor-info-value { color:var(--c-text,#ffeedd); font-size:clamp(0.8em,2.5vw,1.1em); font-weight:bold; }
     .anchor-sub.armed { border-color:#0a9396; }
     .anchor-sub.alarm { border-color:#e63946; }
-    .anchor-radius-btns { display:flex; flex-direction:row; gap:4px; }
+    .anchor-radius-btns { display:flex; flex-direction:column; gap:4px; }
     .btn-radius { background:var(--c-panel,#160e05); color:var(--c-muted,#8e6f43);
       border:1px solid var(--c-sep,#3d2510);
       padding:3px 7px; font-size:0.68em; border-radius:5px; cursor:pointer;
@@ -63,7 +64,7 @@
   const anchorSub = document.createElement('div');
   anchorSub.className = 'anchor-sub';
   anchorSub.innerHTML = `
-    <div>
+    <div class="anchor-info">
       <div class="anchor-info-label">Dérive</div>
       <div class="anchor-info-value" id="anchor-dist">— m</div>
     </div>
