@@ -635,29 +635,28 @@ def switch_device(device: str):
 @app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
     """Pilote le device Spotify actif (téléphone / Android Auto).
-    On récupère le device_id depuis current_playback() — ce qui est
-    en train de jouer — plutôt que de le deviner."""
+    Pas de current_playback() : on envoie la commande sans device_id,
+    Spotify la route vers le device actif (Android Auto, Raspotify…).
+    Si rien ne joue, l'API retourne une erreur qu'on logue sans crasher."""
     sp = get_spotify_client_sync()
     if not sp:
         return {"status": "error", "message": "Spotify non connecté"}
     try:
-        # Récupère le device qui joue actuellement
-        current = sp.current_playback()
-        device_id = current["device"]["id"] if current and current.get("device") else None
-        logger.debug("Spotify action '%s' -> device_id=%s", action, device_id)
-
+        logger.debug("Spotify action '%s'", action)
         if action == "play":
-            sp.start_playback(device_id=device_id)
+            sp.start_playback()
         elif action == "pause":
-            sp.pause_playback(device_id=device_id)
+            sp.pause_playback()
         elif action == "next":
-            sp.next_track(device_id=device_id)
+            sp.next_track()
         elif action == "previous":
-            sp.previous_track(device_id=device_id)
+            sp.previous_track()
         elif action == "playlist" and playlist_id:
-            sp.start_playback(device_id=device_id, context_uri=f"spotify:playlist:{playlist_id}")
+            sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
+        else:
+            return {"status": "error", "message": f"action inconnue: {action}"}
     except Exception as e:
-        logger.warning("Spotify action '%s' failed: %s", action, e)
+        logger.warning("Spotify action '%s' failed: %s", action, str(e))
         return {"status": "error", "message": str(e)}
     return {"status": "ok"}
 
