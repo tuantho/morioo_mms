@@ -3,34 +3,36 @@
 ![Dashboard Morioo MMS](docs/screenshot.png)
 
 ## Overview
-Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tourne sur un Raspberry Pi monté en baie 1-DIN, accessible depuis un autoradio **Ainavi K40** (Android Auto via Pixel 8) et depuis n'importe quel navigateur sur le réseau bateau.
+
+Dashboard tactile embarqué pour le *Boesch 510* (1964, V8 Crusader/Indmar). Tourne sur un Raspberry Pi monté en baie 1-DIN, affiché sur un autoradio **Ainavi K40** via AABrowser (Android Auto, Pixel 8).
 
 **Fonctionnalités :**
 - Jauges temps réel : vitesse (km/h), profondeur (m), tension batterie (V)
 - Carte nautique live (Leaflet + OpenSeaMap) avec suivi du bateau (type Waze)
-- Contrôle de la pompe de cale (arrêt auto après 30 s) et des feux sous-marins OceanLED X-Series
-- ⚓ Alarme de mouillage (anchor watch) : dérive + alarme visuelle et sonore
-- Compteur de trip ODO (km, nautiques, temps de navigation) avec reset
+- Contrôle pompe de cale (arrêt auto 30 s) et feux sous-marins OceanLED X-Series
+- ⚓ Alarme de mouillage (anchor watch) — dérive + alarme visuelle et sonore
+- 🌤 Météo en temps réel (chip top bar + popup prévisions 3h)
+- Compteur ODO (km, nautiques, temps de navigation) avec reset
 - Lecture Spotify avec contrôle playback et playlists
-- Communication USB/Série vers Wemos D1 Mini (ESP8266) pour les relais
-- Diagnostic embarqué (`/api/diag`) et **architecture modulaire** pour les extensions
+- 🌓 Thème **jour/nuit automatique** selon lever/coucher du soleil (calcul astronomique GPS)
+- Layout responsive : mobile, tablette, desktop, Ainavi K40 (1280×480)
+- Architecture modulaire — extensions isolées dans `modules/`
 
 ---
 
 ## Stack technique
+
 | Couche | Technologie |
 |--------|-------------|
 | Backend | FastAPI (Python 3.13) + `pyserial` |
-| Frontend | HTML5 + Canvas + Leaflet + vanilla JS |
-| Matériel | Raspberry Pi 3, Ainavi K40 (Android Auto), Wemos D1 Mini + shield relais |
+| Frontend | HTML5 + Canvas + Leaflet + vanilla JS, variables CSS thème |
+| Matériel | Raspberry Pi 3, Ainavi K40, Wemos D1 Mini + shield relais |
 | Musique | Spotify API via `spotipy` |
-| Android Auto | Kotlin + Car App Library 1.4.0 (voir `android/`) |
+| Android | Kotlin — WebView (téléphone) + Car App Library 1.4.0 (Android Auto) |
 
 ---
 
 ## Restore après crash
-
-En cas de perte du système, cloner le repo et lancer le script de restore :
 
 ```bash
 git clone https://github.com/oli1313/morioo_mms /home/ode/boesch_os
@@ -38,33 +40,26 @@ bash /home/ode/boesch_os/install/restore.sh
 sudo reboot
 ```
 
-Le script remet en place automatiquement :
-- Les paquets système (`xdotool`, `fonts-noto-color-emoji`, etc.)
-- L'environnement Python (venv + dépendances)
-- Le service systemd `boesch_backend.service` (démarrage automatique)
-- La règle udev pour le Wemos (port USB stable via `by-id`)
-- Le cron de refresh Chromium toutes les 5 minutes
+Le script remet en place :
+- Paquets système (`xdotool`, `fonts-noto-color-emoji`, `avahi-daemon`, etc.)
+- Environnement Python (venv + dépendances)
+- Service systemd `boesch_backend.service` (démarrage automatique, watchdog 30 s)
+- Règle udev pour le Wemos (port USB stable via `by-id`)
+- Cron de refresh Chromium toutes les 5 minutes
 
-> **Spotify :** le token n'est pas dans le repo. Après un restore, aller sur `http://<IP-RASP>:8000/login` une fois pour se ré-authentifier.
+> **Spotify :** token non versionné. Après restore → `http://<IP-RASP>:8000/login` pour ré-authentifier.
 
 ---
 
 ## Installation manuelle (dev)
 
 ```bash
-# 1. Cloner
 git clone https://github.com/oli1313/morioo_mms /home/ode/boesch_os
 cd /home/ode/boesch_os
-
-# 2. Venv et dépendances
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
-
-# 3. Lancer
-venv/bin/python main.py
+venv/bin/python main.py          # → http://<IP>:8000/
 ```
-
-Interface accessible sur `http://<IP>:8000/`
 
 ---
 
@@ -72,56 +67,40 @@ Interface accessible sur `http://<IP>:8000/`
 
 ```
 .
-├── main.py                  # Backend FastAPI — cœur + socle de chargement des modules
-├── requirements.txt         # Dépendances Python
-├── CLAUDE.md                # Guide contributeur (pièges, archi modulaire, sécurité)
-├── modules/                 # Fonctionnalités optionnelles (1 par fichier, auto-chargées)
-│   ├── anchor_watch.py      #   alarme de mouillage — backend
-│   └── anchor_watch.js      #   alarme de mouillage — frontend
+├── main.py                      # Backend FastAPI — cœur + chargement modules
+├── requirements.txt
+├── CLAUDE.md                    # Guide contributeur (archi, pièges, sécurité)
+├── modules/
+│   ├── anchor_watch.py/.js      # Alarme de mouillage
+│   └── weather.py/.js           # Météo temps réel
 ├── templates/
-│   └── index.html           # Dashboard (jauges, carte, boutons, ODO, audio)
+│   └── index.html               # Dashboard complet (responsive, thème auto)
 ├── relais_usb/
-│   └── relais_usb.ino       # Firmware Wemos D1 Mini (Arduino C++)
+│   └── relais_usb.ino           # Firmware Wemos D1 Mini
 ├── install/
-│   ├── restore.sh           # Script de restore complet
-│   ├── boesch_backend.service  # Service systemd (Type=notify + watchdog)
-│   └── 99-wemos.rules       # Règle udev CH340 → /dev/ttyWEMOS
-├── android/                 # Application Android Auto (Kotlin)
-│   ├── app/src/main/kotlin/com/morioo/mms/
-│   │   ├── MoriooCarService.kt   # Point d'entrée Car App Service
-│   │   ├── MoriooSession.kt      # Session + écran d'accueil
-│   │   ├── ApiClient.kt          # Appels HTTP vers le Pi (rasp-boesch:8000)
-│   │   ├── DashboardScreen.kt    # Jauges, GPS, musique, météo
-│   │   ├── ControlsScreen.kt     # Pompe de cale, feux sous-marins
-│   │   ├── MapScreen.kt          # Carte CartoDB Dark (Surface rendering)
-│   │   └── TileCache.kt          # Cache LRU des tuiles OSM (80 tuiles max)
-│   ├── app/src/main/kotlin/com/morioo/mms/
-│   │   ├── MoriooApp.kt          #   Application class (init SharedPreferences)
-│   │   ├── AppPreferences.kt     #   URL Pi configurable (SharedPreferences)
-│   │   ├── MainActivity.kt       #   WebView plein écran (app téléphone)
-│   │   ├── SettingsActivity.kt   #   Écran config adresse Pi + test connexion
-│   │   ├── MoriooCarService.kt   #   Point d'entrée CarAppService
-│   │   ├── MoriooSession.kt      #   Session Android Auto
-│   │   ├── ApiClient.kt          #   HTTP vers le Pi
-│   │   ├── DashboardScreen.kt    #   PaneTemplate (vitesse, profondeur, batterie…)
-│   │   ├── ControlsScreen.kt     #   Pompe, feux
-│   │   ├── MapScreen.kt          #   Carte CartoDB Dark (Surface rendering)
-│   │   └── TileCache.kt          #   Cache LRU tuiles OSM (80 max)
-│   └── app/build.gradle          # AGP 8.7.3, Kotlin 2.2.10, Car App Library 1.4.0
+│   ├── restore.sh               # Restore complet
+│   ├── boesch_backend.service   # Systemd (Type=notify + watchdog)
+│   └── 99-wemos.rules           # Udev CH340 → /dev/ttyWEMOS
+├── android/
+│   └── app/src/main/kotlin/com/morioo/mms/
+│       ├── MoriooApp.kt         # Application class (init SharedPreferences)
+│       ├── AppPreferences.kt    # URL Pi configurable (SharedPreferences)
+│       ├── MainActivity.kt      # WebView plein écran + bouton ⚙
+│       ├── SettingsActivity.kt  # Config adresse Pi + test connexion
+│       ├── MediaBridgeService.kt# Serveur local 127.0.0.1:8765 — touches média
+│       ├── MoriooCarService.kt  # Point d'entrée CarAppService
+│       ├── MoriooSession.kt     # Session Android Auto
+│       ├── ApiClient.kt         # HTTP vers le Pi
+│       ├── DashboardScreen.kt   # Jauges + musique (cliquable → MusicScreen)
+│       ├── ControlsScreen.kt    # Pompe, feux, ancre
+│       ├── MusicScreen.kt       # Contrôles média via AudioManager
+│       ├── MapScreen.kt         # Carte CartoDB Dark (Surface rendering)
+│       └── TileCache.kt         # Cache LRU tuiles OSM (80 max)
 ├── tests/
-│   └── smoke_test.py        # Smoke test : démarre l'app et vérifie les routes
-├── docs/
-│   └── screenshot.png       # Capture du dashboard
-├── refresh_chromium.sh      # Envoi F5 à Chromium (appelé par cron)
-├── trip.json / trail.json   # Données ODO + trace persistées (ignorés par git)
-└── bin/                     # arduino-cli binary
+│   └── smoke_test.py
+└── docs/
+    └── screenshot.png
 ```
-
-> **Architecture modulaire** : chaque fonctionnalité optionnelle est un module
-> autoporté dans `modules/` (auto-découvert au démarrage, isolé des autres via
-> `try/except`). Pour **ajouter** une feature → créer `modules/<nom>.py`
-> (+ `.js` optionnel) ; pour **retirer** → supprimer le fichier. Rien à câbler
-> dans le cœur. Règles détaillées dans **`CLAUDE.md`**.
 
 ---
 
@@ -129,144 +108,127 @@ Interface accessible sur `http://<IP>:8000/`
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| `GET` | `/api/status` | Toutes les données bateau + trip ODO |
-| `GET` | `/api/trail` | Trace GPS (liste de points) |
+| `GET` | `/api/status` | Données bateau + trip ODO |
+| `GET` | `/api/trail` | Trace GPS |
 | `GET` | `/api/diag` | Compteurs de diagnostic + uptime |
-| `GET` | `/api/modules` | Modules chargés + URL de leur frontend |
-| `POST` | `/api/switch/pompe_de_cale` | Toggle pompe de cale (arrêt auto 30 s) |
-| `POST` | `/api/switch/lumieres_sous_marines` | Toggle feux sous-marins OceanLED |
-| `POST` | `/api/trip/reset` | Remet le compteur ODO à zéro |
+| `GET` | `/api/modules` | Modules chargés + URL frontend |
+| `POST` | `/api/switch/pompe_de_cale` | Toggle pompe (arrêt auto 30 s) |
+| `POST` | `/api/switch/lumieres_sous_marines` | Toggle feux OceanLED |
+| `POST` | `/api/trip/reset` | Reset ODO |
 | `POST` | `/api/spotify/{action}` | play / pause / next / previous |
 | `POST` | `/api/spotify/playlist?playlist_id=` | Lancer une playlist |
 
-Routes fournies par des **modules** (cf. `modules/`) :
+Modules :
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| `GET` | `/api/anchor` | État de l'alarme de mouillage |
-| `POST` | `/api/anchor/set?radius=` | Pose l'ancre / arme l'alarme |
-| `POST` | `/api/anchor/clear` | Lève l'ancre / désarme |
+| `GET` | `/api/anchor` | État alarme de mouillage |
+| `POST` | `/api/anchor/set?radius=` | Poser l'ancre (rayon en m) |
+| `POST` | `/api/anchor/clear` | Lever l'ancre |
+| `GET` | `/api/weather` | Météo actuelle + prévisions 3h |
 
 ---
 
-## Application Android — Boesch 510
+## Application Android
 
-L'application Android (`android/`) fait **deux choses en un seul APK** :
+Un seul APK — deux usages :
 
-1. **App téléphone** : WebView plein écran → charge le dashboard Pi (`http://rasp-boesch.local:8000`)
-2. **Android Auto** : interface Car App Library projetée sur l'**Ainavi K40** via USB
+1. **App téléphone** : WebView plein écran → dashboard Pi
+2. **Android Auto** : interface Car App Library sur l'Ainavi K40 (USB)
 
 ### Architecture réseau
 
 ```
 Hotspot Pixel 8
-    ├── Raspberry Pi (rasp-boesch.local:8000) ← API HTTP
+    ├── Raspberry Pi  rasp-boesch.local:8000  ← API HTTP
     └── Ainavi K40 (Android Auto) ← USB ← Pixel 8
 ```
 
-### Fonctionnalités Android Auto
+### Contrôle Spotify depuis AABrowser
 
-| Écran | Contenu |
-|-------|---------|
-| **Dashboard** | Vitesse, profondeur, batterie, GPS, ODO, météo |
-| **Contrôles** | Boutons pompe de cale + feux sous-marins (colorés selon état) |
+Quand Android Auto a la session Spotify, l'API externe est bloquée. Solution :
+`MediaBridgeService` tourne en arrière-plan sur `127.0.0.1:8765`. Le dashboard web
+détecte Android (`navigator.userAgent`) et appelle ce bridge local → `AudioManager.dispatchMediaKeyEvent()`.
 
-### Fichiers principaux
+> **Prérequis** : ouvrir l'app Boesch 510 une fois pour démarrer le service, puis basculer sur AABrowser.
 
-| Fichier | Rôle |
-|---------|------|
-| `MainActivity.kt` | WebView plein écran (app téléphone) |
-| `SettingsActivity.kt` | Config IP/URL du Pi + bouton "Tester la connexion" |
-| `AppPreferences.kt` | Stockage SharedPreferences de l'URL Pi |
-| `DashboardScreen.kt` | PaneTemplate Android Auto |
-| `MoriooCarService.kt` | Point d'entrée CarAppService |
-| `ApiClient.kt` | HTTP vers le Pi (lit `AppPreferences.piUrl`) |
+### Connexion réseau
 
-### Build & installation
+Si `rasp-boesch.local` ne résout pas (DNS_PROBE_FINISHED_NXDOMAIN) :
+bouton **⚙** → entrer l'IP directe du Pi (`http://192.168.43.x:8000`) → Tester.
+
+### Sideload en voiture réelle
+
+Google bloque les APKs non-Play-Store dans Android Auto en voiture.
+- **AAAD** (Android Auto Apps Downloader) — patche AA pour accepter les sideloads ✅
+- Ou : `adb install -i com.android.vending app-debug.apk`
+- Activer mode développeur AA : Paramètres → taper 10× sur la version → Sources inconnues
+
+### Build
 
 ```bash
 cd android
 ./gradlew assembleDebug
-# APK : app/build/outputs/apk/debug/app-debug.apk
-
-# Installer sur le Pixel 8
+# APK → app/build/outputs/apk/debug/app-debug.apk
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> **Prérequis :** Java 17, Android SDK 35, Kotlin 2.2.10, AGP 8.7.3, Gradle 8.11.1.
+> Prérequis : Java 17, Android SDK 35, Kotlin 2.2.10, AGP 8.7.3, Gradle 8.11.1
 
-### Connexion réseau
+---
 
-Le Pi se connecte au hotspot du Pixel 8. Si `rasp-boesch.local` ne résout pas
-(DNS_PROBE_FINISHED_NXDOMAIN), ouvrir l'app → bouton **⚙** → entrer l'IP directe
-du Pi (ex : `http://192.168.43.100:8000`) et taper "Tester".
+## Thème jour / nuit
 
-> Le Pi doit avoir `avahi-daemon` installé pour la résolution mDNS (`restore.sh` le fait).
+Bouton 🌓 dans la top bar — cycle 3 états :
 
-### Android Auto en voiture — sideload
+| Bouton | Mode | Comportement |
+|--------|------|---|
+| 🌓 | Auto (défaut) | Bascule au lever/coucher du soleil (calcul astronomique, position GPS) |
+| ☀️ | Forcé jour | Thème clair permanent |
+| 🌙 | Forcé nuit | Thème sombre permanent |
 
-Google bloque les APKs non-Play-Store en voiture réelle. Solutions :
-- **AAAD** (Android Auto Apps Downloader) : patche AA pour accepter les sideloads — recommandé
-- Ou : `adb install -i com.android.vending app-debug.apk` (simule Play Store)
-- Activer le mode développeur AA : Paramètres AA → taper 10× sur la version → "Sources inconnues"
+Préférence sauvegardée en `localStorage`. La carte swap entre tuiles CartoDB dark/light.
 
 ---
 
 ## Wemos D1 Mini — Firmware
 
 Le sketch `relais_usb.ino` écoute sur le port série (115200 baud) :
-- `1` → active le relais (lumières ON)
-- `0` → désactive le relais (lumières OFF)
+- `1` → relais ON (lumières)
+- `0` → relais OFF
 
-Le port est fixé via udev : le Wemos (chip CH340, `idVendor=1a86`) est toujours accessible via `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0`, peu importe le port USB physique utilisé.
-
----
-
-## TODO
-- [x] GPS réel — parse NMEA `$GPRMC`/`$GNRMC` depuis `/dev/ttyACM0` (u-blox 7)
-- [ ] Capteur de profondeur réel — parse sonar NMEA
-- [ ] Tension batterie réelle — lecture analogique depuis le Wemos
-- [ ] Contrôle couleur projecteurs OceanLED
+Port fixé via udev : `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0`.
 
 ---
 
-## Roadmap — idées de fonctionnalités
+## TODO matériel
 
-Classées de la plus intéressante à la moins, du point de vue du propriétaire
-du *Boesch 510* (balades sur la Meuse, sécurité, confort à bord).
+- [x] GPS réel — NMEA `$GPRMC`/`$GNRMC` depuis `/dev/ttyACM0` (u-blox 7)
+- [ ] Capteur de profondeur réel — sonar NMEA
+- [ ] Tension batterie réelle — lecture analogique Wemos
+- [ ] Contrôle couleur OceanLED
 
-### 🛟 Sécurité (priorité haute)
-1. ~~⚓ Alarme de mouillage (anchor watch)~~ — ✅ **réalisé** (module `anchor_watch`).
-2. **🌊 Alarme de hauts-fonds** — alerte dès que la profondeur passe sous un
-   seuil réglable (dès que le sondeur réel sera branché). *La Meuse a des
-   zones peu profondes — protège l'hélice et la coque.*
-3. **🌡️ Surveillance moteur** — température eau/moteur du V8 Crusader, avec
-   alerte surchauffe. *Un V8 ancien qui chauffe = panne au milieu de l'eau.*
-4. **🔋 Surveillance batterie réelle** — tension mesurée + alerte décharge
-   (au lieu de la valeur simulée actuelle).
+---
 
-### 🧭 Navigation (priorité moyenne)
-5. **🧭 Cap (COG) + heure depuis le GPS** — boussole de route, et heure juste
-   même sans connexion ni horloge matérielle (RTC).
-6. **📊 Statistiques de sortie** — vitesse max / moyenne, durée, distance,
-   affichées en direct et conservées par sortie.
-7. **🗺️ Historique des sorties + export GPX** — revoir et partager ses
-   trajets (compatible Google Earth, OpenCPN…).
+## Roadmap fonctionnalités
 
-### 😎 Confort & plaisir (priorité basse)
-8. **🌙 Mode jour / nuit** — atténuation automatique de l'écran le soir
-   (confort visuel, ne pas être ébloui en navigation nocturne).
-9. **📡 Météo & niveau de la Meuse** — conditions et hauteur d'eau en temps
-   réel quand une connexion est disponible.
-10. **📷 Caméra de poupe** — aide à l'accostage et à la marche arrière.
-11. **🎚️ Contrôle couleur OceanLED** — choix de couleur/ambiance des
-    projecteurs sous-marins (déjà au TODO).
+### 🛟 Sécurité
+1. ~~⚓ Alarme de mouillage~~ — ✅ `anchor_watch`
+2. ~~🌤 Météo temps réel~~ — ✅ `weather`
+3. **🌊 Alarme hauts-fonds** — seuil de profondeur réglable (quand sondeur branché)
+4. **🌡️ Surveillance moteur** — température eau/moteur V8 Crusader
+5. **🔋 Batterie réelle** — tension mesurée + alerte décharge
 
-> Chaque fonctionnalité doit respecter les principes du projet : dégradation
-> gracieuse (jamais de crash si un capteur manque) et écritures SD minimales
-> (cf. `CLAUDE.md`).
+### 🧭 Navigation
+6. **🧭 Cap (COG) + heure GPS** — boussole de route, heure sans RTC
+7. **📊 Stats de sortie** — vitesse max/moy, durée, distance par sortie
+8. **🗺️ Export GPX** — partage et relecture des trajets
+
+### 😎 Confort
+9. **📷 Caméra de poupe** — aide à l'accostage
+10. **🎚️ Contrôle couleur OceanLED** — ambiance projecteurs sous-marins
 
 ---
 
 ## Licence
-Projet privé — usage personnel sur le *Boesch 510*. Redistribution interdite sans autorisation explicite.
+Projet privé — usage personnel sur le *Boesch 510*. Redistribution interdite sans autorisation.
