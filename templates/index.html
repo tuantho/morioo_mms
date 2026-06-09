@@ -738,6 +738,23 @@
             await fetch('/api/trip/reset', { method: 'POST' });
             refreshData();
         }
+        // Sur Android (AABrowser + Android Auto), Spotify API est bloquée par AA.
+        // On passe par le MediaBridgeService local (127.0.0.1:8765) qui dispatch
+        // les touches média — seule méthode qui fonctionne en Android Auto.
+        // Fallback sur l'API Pi si le bridge n'est pas joignable (hors AA).
+        const _isAndroid = /Android/i.test(navigator.userAgent);
+        const _bridge = { play:'/play', pause:'/pause', next:'/next', previous:'/previous' };
+
+        async function _bridgeOrApi(bridgePath, apiUrl, apiOpts) {
+            if (_isAndroid) {
+                try {
+                    await fetch('http://127.0.0.1:8765' + bridgePath, { mode: 'no-cors' });
+                    return;
+                } catch(_) {}
+            }
+            await fetch(apiUrl, apiOpts);
+        }
+
         let _spotifyLock = false;
         async function spotifyAction(action) {
             if (_spotifyLock) return;
@@ -745,7 +762,10 @@
             const btn = event.currentTarget;
             btn.style.opacity = '0.4';
             try {
-                await fetch(`/api/spotify/${action}`, { method: 'POST' });
+                await _bridgeOrApi(
+                    _bridge[action] || '/play_pause',
+                    `/api/spotify/${action}`, { method: 'POST' }
+                );
             } catch(_) {}
             setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
         }
@@ -755,6 +775,8 @@
             const btn = event.currentTarget;
             btn.style.opacity = '0.4';
             try {
+                // Les playlists ne passent pas par le bridge (touches media) —
+                // on utilise toujours l'API Pi pour ça.
                 await fetch(`/api/spotify/playlist?playlist_id=${id}`, { method: 'POST' });
             } catch(_) {}
             setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);

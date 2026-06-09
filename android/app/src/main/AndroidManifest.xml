@@ -8,6 +8,9 @@
     <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
     <!-- Bridge média local (foreground service sur 127.0.0.1:8765) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Auto-démarrage au boot (pour que le bridge soit actif sans ouvrir l'app) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".MoriooApp"
@@ -63,6 +66,15 @@
             android:name=".MediaBridgeService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Démarre MediaBridgeService automatiquement au boot -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Service Android Auto — point d'entrée de la Car App -->
         <service
