@@ -616,7 +616,7 @@
             const toDeg = r => r * 180 / Math.PI;
             const now = new Date();
             const JD  = now / 86400000 + 2440587.5;
-            const n   = JD - 2451545.0 + 0.5;
+            const n   = Math.floor(JD - 2451545.0 + 0.5); // entier pur — si fractionnaire, Jtr dérive de ±12h
             const M   = (357.5291 + 0.98560028 * n) % 360;
             const C   = 1.9148 * Math.sin(toRad(M))
                       + 0.0200 * Math.sin(toRad(2 * M))
@@ -665,7 +665,7 @@
             _sunLat = lat; _sunLon = lon;
             if (_themeMode !== 'auto') return;
             const now = Date.now();
-            if (now - _lastSunCheck < 60000) return;
+            if (_lastSunCheck > 0 && now - _lastSunCheck < 60000) return;
             _lastSunCheck = now;
             const wanted  = _themeFromSun(lat, lon);
             const current = document.documentElement.getAttribute('data-theme') || 'night';
