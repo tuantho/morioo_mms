@@ -691,7 +691,7 @@ def spotify_action(action: str, playlist_id: str = None):
         # Récupère le device qui joue actuellement
         current = sp.current_playback()
         device_id = current["device"]["id"] if current and current.get("device") else None
-        logger.debug("Spotify action '%s' → device_id=%s", action, device_id)
+        logger.debug("Spotify action '%s' -> device_id=%s", action, device_id)
 
         if action == "play":
             sp.start_playback(device_id=device_id)
