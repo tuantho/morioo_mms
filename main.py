@@ -3,7 +3,6 @@ import random
 import uvicorn
 import serial
 import json
-import math
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -290,45 +289,10 @@ def load_trail():
 def save_trail():
     _atomic_write(TRAIL_FILE, json.dumps(trail))
 
-# --- Simulation fallback (utilisée quand GPS absent) ---
-MEUSE_ROUTE = [
-    (50.4833, 5.0701),  # Sclayn ouest
-    (50.4851, 5.0780),
-    (50.4872, 5.0860),
-    (50.4890, 5.0940),
-    (50.4901, 5.1002),  # Andenne centre
-    (50.4908, 5.1080),
-    (50.4912, 5.1160),
-    (50.4905, 5.1240),
-    (50.4891, 5.1320),
-    (50.4872, 5.1400),
-    (50.4858, 5.1480),  # Namêche est
-]
+# Position par défaut (Andenne centre) — affichée tant qu'il n'y a pas de fix GPS.
+_DEFAULT_LAT = 50.4901
+_DEFAULT_LON = 5.1002
 
-def _haversine_km(p1, p2):
-    lat1, lon1 = math.radians(p1[0]), math.radians(p1[1])
-    lat2, lon2 = math.radians(p2[0]), math.radians(p2[1])
-    dlat, dlon = lat2 - lat1, lon2 - lon1
-    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
-    return 6371 * 2 * math.asin(math.sqrt(a))
-
-_SEG_DIST   = [_haversine_km(MEUSE_ROUTE[i], MEUSE_ROUTE[i+1]) for i in range(len(MEUSE_ROUTE)-1)]
-_TOTAL_DIST = sum(_SEG_DIST)
-
-def _pos_at_km(km):
-    km = max(0.0, min(km, _TOTAL_DIST))
-    acc = 0.0
-    for i, seg in enumerate(_SEG_DIST):
-        if acc + seg >= km:
-            t = (km - acc) / seg if seg > 0 else 0
-            lat = MEUSE_ROUTE[i][0] + t * (MEUSE_ROUTE[i+1][0] - MEUSE_ROUTE[i][0])
-            lon = MEUSE_ROUTE[i][1] + t * (MEUSE_ROUTE[i+1][1] - MEUSE_ROUTE[i][1])
-            return round(lat, 6), round(lon, 6)
-        acc += seg
-    return MEUSE_ROUTE[-1]
-
-_route_km  = 0.0
-_route_dir = 1
 _trip_dirty  = False   # données ODO modifiées depuis la dernière sauvegarde
 _trail_dirty = False   # trace modifiée depuis la dernière sauvegarde
 
@@ -343,8 +307,8 @@ boat_data = {
     "lumieres_sous_marines": False,
     "music_title": "Spotify Déconnecté",
     "music_artist": "",
-    "lat": MEUSE_ROUTE[0][0],
-    "lon": MEUSE_ROUTE[0][1],
+    "lat": _DEFAULT_LAT,
+    "lon": _DEFAULT_LON,
     "batterie": 12.6,
     "gps_fix": False,
 }
@@ -437,7 +401,7 @@ async def read_gps():
 # Boucle principale : profondeur/batterie simulées + ODO + Spotify
 # ---------------------------------------------------------------------------
 async def simulate_boat_and_spotify():
-    global _route_km, _route_dir, _trip_dirty, _trail_dirty
+    global _trip_dirty, _trail_dirty
     save_counter    = 0
     spotify_counter = 0
     while True:
@@ -450,25 +414,14 @@ async def simulate_boat_and_spotify():
         boat_data["profondeur"] = round(random.uniform(2.0, 8.0), 1)
         boat_data["batterie"]   = round(random.uniform(12.4, 13.1), 2)
 
-        # Si pas de GPS → simulation position sur la Meuse
+        # Vitesse réelle depuis le GPS ; 0 si pas de fix
+        vitesse_kmh = boat_data["vitesse"] * 1.852 if gps_has_fix else 0.0
         if not gps_has_fix:
-            sim_speed_knots = round(random.uniform(15.0, 22.0), 1)
-            boat_data["vitesse"] = sim_speed_knots
-            vitesse_kmh = sim_speed_knots * 1.852
-            _route_km += (vitesse_kmh / 3600) * _route_dir
-            if _route_km >= _TOTAL_DIST:
-                _route_km  = _TOTAL_DIST
-                _route_dir = -1
-            elif _route_km <= 0.0:
-                _route_km  = 0.0
-                _route_dir = 1
-            boat_data["lat"], boat_data["lon"] = _pos_at_km(_route_km)
-        else:
-            vitesse_kmh = boat_data["vitesse"] * 1.852
+            boat_data["vitesse"] = 0.0
 
-        # Trace : position fiable ET bateau en mouvement (> 3 km/h)
-        # pour éviter les points parasites dus au bruit GPS à l'arrêt.
-        position_ok = ((not gps_serial) or gps_has_fix) and vitesse_kmh > 3.0
+        # Trace et ODO : uniquement si fix GPS confirmé et bateau en mouvement
+        # (seuil 3 km/h pour filtrer le bruit GPS à l'arrêt).
+        position_ok = gps_has_fix and vitesse_kmh > 3.0
         pt = [boat_data["lat"], boat_data["lon"]]
         if position_ok and (not trail or trail[-1] != pt):
             trail.append(pt)
