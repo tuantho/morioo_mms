@@ -110,6 +110,10 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(frame)
         webView.loadUrl(AppPreferences.piUrl)
+
+        // Bridge média local : permet au dashboard web (AABrowser) de contrôler
+        // Spotify via les touches média Android même quand AA a la session exclusive.
+        startService(Intent(this, MediaBridgeService::class.java))
     }
 
     // Après retour des Settings : recharger avec la nouvelle URL si elle a changé

@@ -573,13 +573,25 @@
             await fetch('/api/trip/reset', { method: 'POST' });
             refreshData();
         }
+        // Sur Android (AABrowser), Spotify est contrôlé par Android Auto →
+        // l'API Spotify externe est bloquée. On passe par un bridge local
+        // (app Boesch 510 sur 127.0.0.1:8765) qui dispatch les touches média.
+        const _isAndroid = /Android/i.test(navigator.userAgent);
+
         let _spotifyLock = false;
         async function spotifyAction(action) {
             if (_spotifyLock) return;
             _spotifyLock = true;
             const btn = event.currentTarget;
             btn.style.opacity = '0.4';
-            await fetch(`/api/spotify/${action}`, { method: 'POST' });
+            try {
+                if (_isAndroid) {
+                    const map = { play: '/play', pause: '/pause', next: '/next', previous: '/previous' };
+                    await fetch('http://127.0.0.1:8765' + (map[action] || '/play_pause'), { mode: 'no-cors' });
+                } else {
+                    await fetch(`/api/spotify/${action}`, { method: 'POST' });
+                }
+            } catch(_) {}
             setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
         }
         async function playPlaylist(id) {
@@ -587,7 +599,15 @@
             _spotifyLock = true;
             const btn = event.currentTarget;
             btn.style.opacity = '0.4';
-            await fetch(`/api/spotify/playlist?playlist_id=${id}`, { method: 'POST' });
+            try {
+                if (_isAndroid) {
+                    // Sur Android Auto, la sélection de playlist n'est pas
+                    // disponible via les touches média — on toggle play/pause.
+                    await fetch('http://127.0.0.1:8765/play_pause', { mode: 'no-cors' });
+                } else {
+                    await fetch(`/api/spotify/playlist?playlist_id=${id}`, { method: 'POST' });
+                }
+            } catch(_) {}
             setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
         }
     </script>
