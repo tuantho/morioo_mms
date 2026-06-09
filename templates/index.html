@@ -125,7 +125,7 @@
         canvas { display: block; margin: 0 auto; }
 
         /* ── Boutons relais ──────────────────────────────────────────────── */
-        .lights-container { display: flex; gap: 8px; width: 100%; }
+        .lights-container { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
         .btn-toggle {
             background-color: var(--c-btn); color: var(--c-text);
             border: 3px solid var(--c-border);

@@ -1,74 +1,89 @@
 // Frontend du module Anchor Watch — autonome.
-// Injecte son style + son UI dans #modules-bar, utilise la carte Leaflet
-// globale (window.map) pour le marqueur + le cercle de rayon, et interroge
-// /api/anchor. Aucun couplage avec le reste de l'UI : supprimer le module
-// backend retire aussi ce frontend (servi par /api/anchor/ui.js).
+// Injecte son UI directement dans .lights-container pour former une grille 2×2 :
+//   [POMPE]      [FEUX]
+//   [MOUILLAGE]  [dérive + rayons]
+// Utilise la carte Leaflet globale (window.map) et interroge /api/anchor.
 (function () {
-  const slot = document.getElementById('modules-bar');
+  const slot = document.querySelector('.lights-container');
   if (!slot) return;
-  const map = window.map;  // carte Leaflet définie par index.html
+  const map = window.map;
 
-  // --- Style autonome (repris de l'implémentation d'origine) ---
+  // --- Style autonome ---
   const style = document.createElement('style');
   style.textContent = `
-    /* Colonne : bouton pleine largeur + ligne info centrée en dessous */
-    .anchor-container { display:flex; flex-direction:column; gap:5px; width:100%; }
+    /* Bouton mouillage : même apparence que .btn-toggle */
     .btn-anchor {
-      background:var(--c-btn,#1a1205); color:var(--c-text,#ffeedd);
+      background:var(--c-btn,#5c1d06); color:var(--c-text,#ffeedd);
       border:3px solid var(--c-border,#8e6f43);
       padding: clamp(8px,2.5vw,18px) clamp(4px,1vw,12px);
       font-size: clamp(0.72em,2vw,1.1em);
       border-radius:10px; cursor:pointer; font-weight:bold;
-      width:100%; text-transform:uppercase; font-family:inherit;
-      box-shadow:0 4px 6px rgba(0,0,0,0.3); }
+      text-transform:uppercase; font-family:inherit;
+      box-shadow:0 4px 6px rgba(0,0,0,0.3);
+      width:100%; height:100%; }
     .btn-anchor.armed { background:#00334e; border-color:#0a9396; box-shadow:0 0 10px #0a939688; }
     .btn-anchor.alarm { background:#7d0000; border-color:#e63946; animation:anchorFlash 0.6s infinite; }
     @keyframes anchorFlash { 0%,100%{box-shadow:0 0 6px #e63946;} 50%{box-shadow:0 0 20px #e63946; background:#c0001a;} }
-    /* Ligne info + boutons rayon, centrée */
-    .anchor-sub { display:flex; gap:8px; justify-content:center; align-items:center; }
-    .anchor-info { background:var(--c-panel,#1a1205); border:2px solid var(--c-sep,#3d2510);
-      border-radius:8px; padding:4px 12px; display:flex; flex-direction:column;
-      justify-content:center; align-items:center; }
-    .anchor-info.armed { border-color:#0a9396; }
-    .anchor-info.alarm { border-color:#e63946; }
+
+    /* Cellule dérive + rayons : même taille que les autres boutons */
+    .anchor-sub {
+      background:var(--c-btn,#5c1d06); color:var(--c-text,#ffeedd);
+      border:3px solid var(--c-border,#8e6f43);
+      padding: clamp(6px,2vw,14px) clamp(4px,1vw,12px);
+      border-radius:10px; font-family:inherit;
+      box-shadow:0 4px 6px rgba(0,0,0,0.3);
+      display:flex; flex-direction:column;
+      justify-content:center; align-items:center; gap:4px; }
     .anchor-info-label { color:var(--c-muted,#8e6f43); font-size:0.60em; text-transform:uppercase; }
-    .anchor-info-value { color:var(--c-text,#fff); font-size:0.90em; font-weight:bold; }
+    .anchor-info-value { color:var(--c-text,#ffeedd); font-size:clamp(0.8em,2.5vw,1.1em); font-weight:bold; }
+    .anchor-sub.armed { border-color:#0a9396; }
+    .anchor-sub.alarm { border-color:#e63946; }
     .anchor-radius-btns { display:flex; flex-direction:row; gap:4px; }
-    .btn-radius { background:var(--c-panel,#1a1205); color:var(--c-muted,#8e6f43);
+    .btn-radius { background:var(--c-panel,#160e05); color:var(--c-muted,#8e6f43);
       border:1px solid var(--c-sep,#3d2510);
-      padding:4px 8px; font-size:0.68em; border-radius:5px; cursor:pointer;
+      padding:3px 7px; font-size:0.68em; border-radius:5px; cursor:pointer;
       font-weight:bold; font-family:inherit; }
-    .btn-radius.selected { border-color:#0a9396; color:#0a9396; }`;
+    .btn-radius.selected { border-color:#0a9396; color:#0a9396; }
+
+    /* Ainavi K40 : même compacité que .btn-toggle */
+    @media (min-aspect-ratio: 5/2) and (min-width: 400px) {
+      .btn-anchor { padding:5px 4px; font-size:0.74em; border-width:2px; border-radius:7px; }
+      .anchor-sub  { padding:5px 4px; font-size:0.70em; border-width:2px; border-radius:7px; }
+    }`;
   document.head.appendChild(style);
 
-  // --- UI ---
-  const box = document.createElement('div');
-  box.className = 'anchor-container';
-  box.innerHTML = `
-    <button id="btn-anchor" class="btn-anchor">⚓ MOUILLAGE : OFF</button>
-    <div class="anchor-sub">
-      <div id="anchor-info" class="anchor-info">
-        <div class="anchor-info-label">Dérive</div>
-        <div class="anchor-info-value" id="anchor-dist">— m</div>
-      </div>
-      <div class="anchor-radius-btns">
-        <button class="btn-radius" data-r="25">25m</button>
-        <button class="btn-radius selected" data-r="50">50m</button>
-        <button class="btn-radius" data-r="100">100m</button>
-      </div>
+  // --- Bouton mouillage (cellule 3 de la grille) ---
+  const anchorBtn = document.createElement('button');
+  anchorBtn.id = 'btn-anchor';
+  anchorBtn.className = 'btn-anchor';
+  anchorBtn.textContent = '⚓ MOUILLAGE : OFF';
+  slot.appendChild(anchorBtn);
+
+  // --- Cellule dérive + rayons (cellule 4 de la grille) ---
+  const anchorSub = document.createElement('div');
+  anchorSub.className = 'anchor-sub';
+  anchorSub.innerHTML = `
+    <div>
+      <div class="anchor-info-label">Dérive</div>
+      <div class="anchor-info-value" id="anchor-dist">— m</div>
+    </div>
+    <div class="anchor-radius-btns">
+      <button class="btn-radius" data-r="25">25m</button>
+      <button class="btn-radius selected" data-r="50">50m</button>
+      <button class="btn-radius" data-r="100">100m</button>
     </div>`;
-  slot.appendChild(box);
+  slot.appendChild(anchorSub);
 
   let anchorRadius = 50, anchorArmed = false, anchorMarker = null, anchorCircle = null;
 
-  document.getElementById('btn-anchor').onclick = toggleAnchor;
-  box.querySelectorAll('.btn-radius').forEach(b => {
+  anchorBtn.onclick = toggleAnchor;
+  anchorSub.querySelectorAll('.btn-radius').forEach(b => {
     b.onclick = () => setAnchorRadius(parseInt(b.dataset.r, 10));
   });
 
   function setAnchorRadius(r) {
     anchorRadius = r;
-    box.querySelectorAll('.btn-radius').forEach(b =>
+    anchorSub.querySelectorAll('.btn-radius').forEach(b =>
       b.classList.toggle('selected', parseInt(b.dataset.r, 10) === r));
     if (anchorArmed) {
       fetch(`/api/anchor/set?radius=${r}`, { method: 'POST' }).then(x => x.json()).then(d => {
@@ -102,26 +117,32 @@
   }
 
   function updateUI(anchor) {
-    const btn = document.getElementById('btn-anchor');
-    const info = document.getElementById('anchor-info');
     const dist = document.getElementById('anchor-dist');
     if (!anchor.active) {
-      btn.textContent = '⚓ MOUILLAGE : OFF'; btn.className = 'btn-anchor';
-      info.className = 'anchor-info'; dist.textContent = '— m'; stopAlarm(); return;
+      anchorBtn.textContent = '⚓ MOUILLAGE : OFF';
+      anchorBtn.className = 'btn-anchor';
+      anchorSub.className = 'anchor-sub';
+      dist.textContent = '— m';
+      stopAlarm();
+      return;
     }
     if (anchor.alarm) {
-      btn.textContent = '⚓ DÉRIVE !'; btn.className = 'btn-anchor alarm';
-      info.className = 'anchor-info alarm'; playAlarm();
+      anchorBtn.textContent = '⚓ DÉRIVE !';
+      anchorBtn.className = 'btn-anchor alarm';
+      anchorSub.className = 'anchor-sub alarm';
+      playAlarm();
       if (anchorCircle) anchorCircle.setStyle({ color: '#e63946', fillColor: '#e63946' });
     } else {
-      btn.textContent = '⚓ MOUILLAGE : ON'; btn.className = 'btn-anchor armed';
-      info.className = 'anchor-info armed'; stopAlarm();
+      anchorBtn.textContent = '⚓ MOUILLAGE : ON';
+      anchorBtn.className = 'btn-anchor armed';
+      anchorSub.className = 'anchor-sub armed';
+      stopAlarm();
       if (anchorCircle) anchorCircle.setStyle({ color: '#0a9396', fillColor: '#0a9396' });
     }
     dist.textContent = (anchor.distance_m || 0).toFixed(0) + ' m';
   }
 
-  // Bip d'alarme via Web Audio (pas de fichier audio requis)
+  // Bip d'alarme via Web Audio
   let _alarmInterval = null;
   function playAlarm() {
     if (_alarmInterval) return;
@@ -142,7 +163,6 @@
     if (_alarmInterval) { clearInterval(_alarmInterval); _alarmInterval = null; }
   }
 
-  // Le module poll son propre état (découplé de /api/status)
   async function refresh() {
     try {
       const a = await fetch('/api/anchor').then(r => r.json());
