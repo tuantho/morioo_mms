@@ -632,6 +632,24 @@ def switch_device(device: str):
         "relay_sent": sent,
     }
 
+@app.get("/api/spotify/debug")
+def spotify_debug():
+    """Retourne les devices Spotify visibles + ce qui joue actuellement."""
+    sp = get_spotify_client_sync()
+    if not sp:
+        return {"status": "error", "message": "Spotify non connecté"}
+    try:
+        devices = sp.devices()
+        playback = sp.current_playback()
+        return {
+            "devices": devices.get("devices", []) if devices else [],
+            "current_device": playback.get("device") if playback else None,
+            "is_playing": playback.get("is_playing") if playback else None,
+            "track": playback["item"]["name"] if playback and playback.get("item") else None,
+        }
+    except Exception as e:
+        return {"status": "error", "message": repr(e)}
+
 @app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
     """Pilote le device Spotify actif (téléphone / Android Auto).
@@ -642,17 +660,22 @@ def spotify_action(action: str, playlist_id: str = None):
     if not sp:
         return {"status": "error", "message": "Spotify non connecté"}
     try:
-        logger.debug("Spotify action '%s'", action)
+        # On cible explicitement le device en cours de lecture (Android Auto,
+        # téléphone, Raspotify…). Sans device_id, Spotify choisit lui-même
+        # et peut choisir Raspotify (inactif) au lieu du téléphone.
+        playback = sp.current_playback()
+        device_id = playback["device"]["id"] if playback and playback.get("device") else None
+        logger.debug("Spotify action %r on device_id=%s", action, device_id)
         if action == "play":
-            sp.start_playback()
+            sp.start_playback(device_id=device_id)
         elif action == "pause":
-            sp.pause_playback()
+            sp.pause_playback(device_id=device_id)
         elif action == "next":
-            sp.next_track()
+            sp.next_track(device_id=device_id)
         elif action == "previous":
-            sp.previous_track()
+            sp.previous_track(device_id=device_id)
         elif action == "playlist" and playlist_id:
-            sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
+            sp.start_playback(device_id=device_id, context_uri=f"spotify:playlist:{playlist_id}")
         else:
             return {"status": "error", "message": f"action inconnue: {action}"}
     except Exception as e:
