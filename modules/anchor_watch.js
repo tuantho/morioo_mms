@@ -32,20 +32,13 @@
       padding: clamp(6px,2vw,14px) clamp(4px,1vw,12px);
       border-radius:10px; font-family:inherit;
       box-shadow:0 4px 6px rgba(0,0,0,0.3);
-      display:flex; flex-direction:row;
-      justify-content:center; align-items:center; gap:8px; }
+      display:flex; flex-direction:column;
+      justify-content:center; align-items:center; gap:4px; }
     .anchor-info { display:flex; flex-direction:column; align-items:center; }
     .anchor-info-label { color:var(--c-muted,#8e6f43); font-size:0.60em; text-transform:uppercase; }
     .anchor-info-value { color:var(--c-text,#ffeedd); font-size:clamp(0.8em,2.5vw,1.1em); font-weight:bold; }
     .anchor-sub.armed { border-color:#0a9396; }
     .anchor-sub.alarm { border-color:#e63946; }
-    .anchor-radius-btns { display:flex; flex-direction:column; gap:4px; }
-    .btn-radius { background:var(--c-panel,#160e05); color:var(--c-muted,#8e6f43);
-      border:1px solid var(--c-sep,#3d2510);
-      padding:3px 7px; font-size:0.68em; border-radius:5px; cursor:pointer;
-      font-weight:bold; font-family:inherit; }
-    .btn-radius.selected { border-color:#0a9396; color:#0a9396; }
-
     /* Ainavi K40 : même compacité que .btn-toggle */
     @media (min-aspect-ratio: 5/2) and (min-width: 400px) {
       .btn-anchor { padding:5px 4px; font-size:0.74em; border-width:2px; border-radius:7px; }
@@ -67,31 +60,13 @@
     <div class="anchor-info">
       <div class="anchor-info-label">Dérive</div>
       <div class="anchor-info-value" id="anchor-dist">— m</div>
-    </div>
-    <div class="anchor-radius-btns">
-      <button class="btn-radius" data-r="25">25m</button>
-      <button class="btn-radius selected" data-r="50">50m</button>
-      <button class="btn-radius" data-r="100">100m</button>
     </div>`;
   slot.appendChild(anchorSub);
 
-  let anchorRadius = 50, anchorArmed = false, anchorMarker = null, anchorCircle = null;
+  const anchorRadius = 50;  // rayon fixe (50 m)
+  let anchorArmed = false, anchorMarker = null, anchorCircle = null;
 
   anchorBtn.onclick = toggleAnchor;
-  anchorSub.querySelectorAll('.btn-radius').forEach(b => {
-    b.onclick = () => setAnchorRadius(parseInt(b.dataset.r, 10));
-  });
-
-  function setAnchorRadius(r) {
-    anchorRadius = r;
-    anchorSub.querySelectorAll('.btn-radius').forEach(b =>
-      b.classList.toggle('selected', parseInt(b.dataset.r, 10) === r));
-    if (anchorArmed) {
-      fetch(`/api/anchor/set?radius=${r}`, { method: 'POST' }).then(x => x.json()).then(d => {
-        if (anchorCircle && d.radius_m) anchorCircle.setRadius(d.radius_m);
-      });
-    }
-  }
 
   async function toggleAnchor() {
     if (anchorArmed) {
