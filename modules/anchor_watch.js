@@ -12,22 +12,22 @@
   const style = document.createElement('style');
   style.textContent = `
     .anchor-container { display:flex; gap:8px; width:100%; align-items:stretch; }
-    .btn-anchor { background:#1a1205; color:#ffeedd; border:3px solid #8e6f43;
-      padding:14px; font-size:1em; border-radius:10px; cursor:pointer;
+    .btn-anchor { background:#1a1205; color:#ffeedd; border:2px solid #8e6f43;
+      padding:6px 8px; font-size:0.82em; border-radius:8px; cursor:pointer;
       font-weight:bold; flex:2; text-transform:uppercase; font-family:inherit; }
-    .btn-anchor.armed { background:#00334e; border-color:#0a9396; box-shadow:0 0 12px #0a939688; }
+    .btn-anchor.armed { background:#00334e; border-color:#0a9396; box-shadow:0 0 10px #0a939688; }
     .btn-anchor.alarm { background:#7d0000; border-color:#e63946; animation:anchorFlash 0.6s infinite; }
-    @keyframes anchorFlash { 0%,100%{box-shadow:0 0 8px #e63946;} 50%{box-shadow:0 0 28px #e63946; background:#c0001a;} }
-    .anchor-info { background:#1a1205; border:3px solid #3d2510; border-radius:10px;
-      padding:8px 12px; flex:1; display:flex; flex-direction:column;
+    @keyframes anchorFlash { 0%,100%{box-shadow:0 0 6px #e63946;} 50%{box-shadow:0 0 20px #e63946; background:#c0001a;} }
+    .anchor-info { background:#1a1205; border:2px solid #3d2510; border-radius:8px;
+      padding:4px 8px; flex:1; display:flex; flex-direction:column;
       justify-content:center; align-items:center; min-width:0; }
     .anchor-info.armed { border-color:#0a9396; }
     .anchor-info.alarm { border-color:#e63946; }
-    .anchor-info-label { color:#8e6f43; font-size:0.68em; text-transform:uppercase; }
-    .anchor-info-value { color:#fff; font-size:1.1em; font-weight:bold; }
-    .anchor-radius-btns { display:flex; flex-direction:column; gap:4px; flex-shrink:0; }
+    .anchor-info-label { color:#8e6f43; font-size:0.60em; text-transform:uppercase; }
+    .anchor-info-value { color:#fff; font-size:0.90em; font-weight:bold; }
+    .anchor-radius-btns { display:flex; flex-direction:column; gap:3px; flex-shrink:0; }
     .btn-radius { background:#1a1205; color:#8e6f43; border:1px solid #3d2510;
-      padding:4px 8px; font-size:0.72em; border-radius:6px; cursor:pointer;
+      padding:3px 6px; font-size:0.65em; border-radius:5px; cursor:pointer;
       font-weight:bold; font-family:inherit; }
     .btn-radius.selected { border-color:#0a9396; color:#0a9396; }`;
   document.head.appendChild(style);

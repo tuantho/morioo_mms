@@ -249,7 +249,7 @@
             body {
                 display: grid;
                 grid-template-rows: auto 1fr;
-                grid-template-columns: 1fr 1.5fr 0.85fr;
+                grid-template-columns: 1.25fr 1.45fr 0.65fr;
                 grid-template-areas:
                     "topbar topbar topbar"
                     "left   map    audio";
@@ -595,12 +595,12 @@
         function resizeGauges() {
             const container = document.querySelector('.gauges-container');
             if (!container) return;
-            // Largeur disponible par jauge (3 jauges, ~30% chacune) et hauteur dispo
-            const byWidth  = Math.floor((container.offsetWidth  - 30) / 3 * 0.88);
-            const byHeight = Math.floor( container.offsetHeight * 0.80);
-            // Écran autoradio (ratio très large ≥ 2.5:1) : on plafonne à 110px
+            // Largeur disponible par jauge (3 jauges côte à côte)
+            const byWidth  = Math.floor((container.offsetWidth  - 16) / 3 * 0.96);
+            const byHeight = Math.floor( container.offsetHeight * 0.86);
+            // Écran autoradio (ratio ≥ 2.5:1) : plafond relevé pour des jauges plus lisibles
             const isCarScreen = window.innerWidth / window.innerHeight >= 2.5;
-            const maxSize = isCarScreen ? 110 : 220;
+            const maxSize = isCarScreen ? 150 : 240;
             const size    = Math.max(60, Math.min(byWidth, byHeight, maxSize));
             ['gauge-vitesse', 'gauge-profondeur', 'gauge-batterie'].forEach(id => {
                 const c = document.getElementById(id);
