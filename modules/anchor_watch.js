@@ -11,23 +11,32 @@
   // --- Style autonome (repris de l'implémentation d'origine) ---
   const style = document.createElement('style');
   style.textContent = `
-    .anchor-container { display:flex; gap:8px; width:100%; align-items:stretch; }
-    .btn-anchor { background:#1a1205; color:#ffeedd; border:2px solid #8e6f43;
-      padding:6px 8px; font-size:0.82em; border-radius:8px; cursor:pointer;
-      font-weight:bold; flex:2; text-transform:uppercase; font-family:inherit; }
+    /* Colonne : bouton pleine largeur + ligne info centrée en dessous */
+    .anchor-container { display:flex; flex-direction:column; gap:5px; width:100%; }
+    .btn-anchor {
+      background:var(--c-btn,#1a1205); color:var(--c-text,#ffeedd);
+      border:3px solid var(--c-border,#8e6f43);
+      padding: clamp(8px,2.5vw,18px) clamp(4px,1vw,12px);
+      font-size: clamp(0.72em,2vw,1.1em);
+      border-radius:10px; cursor:pointer; font-weight:bold;
+      width:100%; text-transform:uppercase; font-family:inherit;
+      box-shadow:0 4px 6px rgba(0,0,0,0.3); }
     .btn-anchor.armed { background:#00334e; border-color:#0a9396; box-shadow:0 0 10px #0a939688; }
     .btn-anchor.alarm { background:#7d0000; border-color:#e63946; animation:anchorFlash 0.6s infinite; }
     @keyframes anchorFlash { 0%,100%{box-shadow:0 0 6px #e63946;} 50%{box-shadow:0 0 20px #e63946; background:#c0001a;} }
-    .anchor-info { background:#1a1205; border:2px solid #3d2510; border-radius:8px;
-      padding:4px 8px; flex:1; display:flex; flex-direction:column;
-      justify-content:center; align-items:center; min-width:0; }
+    /* Ligne info + boutons rayon, centrée */
+    .anchor-sub { display:flex; gap:8px; justify-content:center; align-items:center; }
+    .anchor-info { background:var(--c-panel,#1a1205); border:2px solid var(--c-sep,#3d2510);
+      border-radius:8px; padding:4px 12px; display:flex; flex-direction:column;
+      justify-content:center; align-items:center; }
     .anchor-info.armed { border-color:#0a9396; }
     .anchor-info.alarm { border-color:#e63946; }
-    .anchor-info-label { color:#8e6f43; font-size:0.60em; text-transform:uppercase; }
-    .anchor-info-value { color:#fff; font-size:0.90em; font-weight:bold; }
-    .anchor-radius-btns { display:flex; flex-direction:column; gap:3px; flex-shrink:0; }
-    .btn-radius { background:#1a1205; color:#8e6f43; border:1px solid #3d2510;
-      padding:3px 6px; font-size:0.65em; border-radius:5px; cursor:pointer;
+    .anchor-info-label { color:var(--c-muted,#8e6f43); font-size:0.60em; text-transform:uppercase; }
+    .anchor-info-value { color:var(--c-text,#fff); font-size:0.90em; font-weight:bold; }
+    .anchor-radius-btns { display:flex; flex-direction:row; gap:4px; }
+    .btn-radius { background:var(--c-panel,#1a1205); color:var(--c-muted,#8e6f43);
+      border:1px solid var(--c-sep,#3d2510);
+      padding:4px 8px; font-size:0.68em; border-radius:5px; cursor:pointer;
       font-weight:bold; font-family:inherit; }
     .btn-radius.selected { border-color:#0a9396; color:#0a9396; }`;
   document.head.appendChild(style);
@@ -37,14 +46,16 @@
   box.className = 'anchor-container';
   box.innerHTML = `
     <button id="btn-anchor" class="btn-anchor">⚓ MOUILLAGE : OFF</button>
-    <div id="anchor-info" class="anchor-info">
-      <div class="anchor-info-label">Dérive</div>
-      <div class="anchor-info-value" id="anchor-dist">— m</div>
-    </div>
-    <div class="anchor-radius-btns">
-      <button class="btn-radius" data-r="25">25m</button>
-      <button class="btn-radius selected" data-r="50">50m</button>
-      <button class="btn-radius" data-r="100">100m</button>
+    <div class="anchor-sub">
+      <div id="anchor-info" class="anchor-info">
+        <div class="anchor-info-label">Dérive</div>
+        <div class="anchor-info-value" id="anchor-dist">— m</div>
+      </div>
+      <div class="anchor-radius-btns">
+        <button class="btn-radius" data-r="25">25m</button>
+        <button class="btn-radius selected" data-r="50">50m</button>
+        <button class="btn-radius" data-r="100">100m</button>
+      </div>
     </div>`;
   slot.appendChild(box);
 
