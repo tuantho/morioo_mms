@@ -681,21 +681,28 @@ def switch_device(device: str):
 
 @app.post("/api/spotify/{action}")
 def spotify_action(action: str, playlist_id: str = None):
-    """Pilote le device Spotify actif (téléphone / Android Auto) sans forcer de device."""
+    """Pilote le device Spotify actif (téléphone / Android Auto).
+    On récupère le device_id depuis current_playback() — ce qui est
+    en train de jouer — plutôt que de le deviner."""
     sp = get_spotify_client_sync()
     if not sp:
         return {"status": "error", "message": "Spotify non connecté"}
     try:
+        # Récupère le device qui joue actuellement
+        current = sp.current_playback()
+        device_id = current["device"]["id"] if current and current.get("device") else None
+        logger.debug("Spotify action '%s' → device_id=%s", action, device_id)
+
         if action == "play":
-            sp.start_playback()
+            sp.start_playback(device_id=device_id)
         elif action == "pause":
-            sp.pause_playback()
+            sp.pause_playback(device_id=device_id)
         elif action == "next":
-            sp.next_track()
+            sp.next_track(device_id=device_id)
         elif action == "previous":
-            sp.previous_track()
+            sp.previous_track(device_id=device_id)
         elif action == "playlist" and playlist_id:
-            sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
+            sp.start_playback(device_id=device_id, context_uri=f"spotify:playlist:{playlist_id}")
     except Exception as e:
         logger.warning("Spotify action '%s' failed: %s", action, e)
         return {"status": "error", "message": str(e)}
