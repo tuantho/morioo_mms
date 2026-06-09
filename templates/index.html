@@ -533,6 +533,7 @@
                     lastPos = newPos;
                     boatMarker.setLatLng(newPos);
                     if (followBoat) map.setView(newPos, map.getZoom(), { animate: false });
+                    checkAutoTheme(data.lat, data.lon);
                 }
 
                 let gpsEl = document.getElementById('gps-indicator');
@@ -621,11 +622,55 @@
         drawGauge('gauge-profondeur', 0,    0,  10, '#00bfff');
         drawGauge('gauge-batterie',   12.0, 10, 15, '#38b000');
 
-        // --- THÈME JOUR / NUIT ---
+        // --- THÈME JOUR / NUIT (auto lever/coucher soleil) ---
+
+        // Position courante pour le calcul solaire (mise à jour dès que GPS dispo)
+        let _sunLat = 50.4901, _sunLon = 5.1002;
+        let _lastSunCheck = 0;
+
+        // Mode : 'auto' | 'day' | 'night'  — 'auto' par défaut
+        let _themeMode = localStorage.getItem('themeMode') || 'auto';
+
+        // Calcul du lever et coucher du soleil (algorithme NOAA simplifié, précis à ~1 min)
+        function getSunTimes(lat, lon) {
+            const toRad = d => d * Math.PI / 180;
+            const toDeg = r => r * 180 / Math.PI;
+            const now = new Date();
+            const JD  = now / 86400000 + 2440587.5;
+            const n   = JD - 2451545.0 + 0.5;
+            const M   = (357.5291 + 0.98560028 * n) % 360;
+            const C   = 1.9148 * Math.sin(toRad(M))
+                      + 0.0200 * Math.sin(toRad(2 * M))
+                      + 0.0003 * Math.sin(toRad(3 * M));
+            const lam  = (M + C + 282.9372) % 360;
+            const Jtr  = 2451545.0 + 0.0009 + lon / 360 + n
+                       + 0.0053 * Math.sin(toRad(M))
+                       - 0.0069 * Math.sin(toRad(2 * lam));
+            const sinDec = Math.sin(toRad(lam)) * Math.sin(toRad(23.45));
+            const cosH   = (Math.sin(toRad(-0.833)) - Math.sin(toRad(lat)) * sinDec)
+                         / (Math.cos(toRad(lat)) * Math.cos(Math.asin(sinDec)));
+            if (cosH < -1) return { polar: 'day' };   // soleil de minuit
+            if (cosH >  1) return { polar: 'night' };  // nuit polaire
+            const H      = toDeg(Math.acos(cosH));
+            const toDate = jd => new Date((jd - 2440587.5) * 86400000);
+            return { sunrise: toDate(Jtr - H / 360), sunset: toDate(Jtr + H / 360) };
+        }
+
+        function _themeFromSun(lat, lon) {
+            const t   = getSunTimes(lat, lon);
+            if (t.polar) return t.polar;
+            const now = new Date();
+            return (now >= t.sunrise && now < t.sunset) ? 'day' : 'night';
+        }
+
+        function _btnLabel() {
+            return { auto: '🌓', day: '☀️', night: '🌙' }[_themeMode] || '🌓';
+        }
+
         function applyTheme(theme) {
             const isDay = (theme === 'day');
             document.documentElement.setAttribute('data-theme', isDay ? 'day' : 'night');
-            document.getElementById('btn-theme').textContent = isDay ? '🌙' : '☀️';
+            document.getElementById('btn-theme').textContent = _btnLabel();
             // Swap tuile de fond carte
             if (_baseTile) map.removeLayer(_baseTile);
             _baseTile = L.tileLayer(
@@ -634,16 +679,36 @@
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
             ).addTo(map);
             _baseTile.bringToBack();
-            // Redessiner les jauges avec les nouvelles couleurs
-            refreshData();
         }
+
+        // Appelé depuis refreshData — vérifie 1×/min si la transition a eu lieu
+        function checkAutoTheme(lat, lon) {
+            _sunLat = lat; _sunLon = lon;
+            if (_themeMode !== 'auto') return;
+            const now = Date.now();
+            if (now - _lastSunCheck < 60000) return;
+            _lastSunCheck = now;
+            const wanted  = _themeFromSun(lat, lon);
+            const current = document.documentElement.getAttribute('data-theme') || 'night';
+            if (wanted !== current) applyTheme(wanted);
+        }
+
+        // Cycle bouton : 🌓 auto → ☀️ forcé jour → 🌙 forcé nuit → 🌓 auto
         function toggleTheme() {
-            const isDay = document.documentElement.getAttribute('data-theme') !== 'day';
-            localStorage.setItem('theme', isDay ? 'day' : 'night');
-            applyTheme(isDay ? 'day' : 'night');
+            _themeMode = { auto: 'day', day: 'night', night: 'auto' }[_themeMode] || 'auto';
+            localStorage.setItem('themeMode', _themeMode);
+            applyTheme(_themeMode === 'auto' ? _themeFromSun(_sunLat, _sunLon) : _themeMode);
+            document.getElementById('btn-theme').textContent = _btnLabel();
         }
-        // Appliquer le thème sauvegardé (nuit par défaut)
-        applyTheme(localStorage.getItem('theme') || 'night');
+
+        // Application au chargement
+        (function() {
+            const theme = _themeMode === 'auto'
+                ? _themeFromSun(_sunLat, _sunLon)
+                : _themeMode;
+            applyTheme(theme);
+            document.getElementById('btn-theme').textContent = _btnLabel();
+        })();
 
         setInterval(refreshData,  1000);
         setInterval(refreshTrail, 5000);
