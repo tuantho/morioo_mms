@@ -249,10 +249,10 @@
             body {
                 display: grid;
                 grid-template-rows: auto 1fr;
-                grid-template-columns: 1.25fr 1.45fr 0.65fr;
+                grid-template-columns: 1.25fr 1.75fr;
                 grid-template-areas:
-                    "topbar topbar topbar"
-                    "left   map    audio";
+                    "topbar topbar"
+                    "left   map";
                 overflow: hidden;
                 height: 100vh;
                 padding: 3px 5px;
@@ -286,29 +286,8 @@
             .odo-label     { font-size: 0.50em; margin-bottom: 0; }
             .btn-reset     { padding: 4px 7px; font-size: 0.66em; }
 
-            /* ── Colonne Spotify (droite) ── */
-            .bottom-audio-bar {
-                grid-area: audio;
-                display: flex; flex-direction: column; gap: 5px;
-                height: 100%; padding: 6px 7px;
-                border-radius: 10px;
-            }
-            .track-info {
-                font-size: 0.82em; flex-shrink: 0;
-                border-bottom: 1px solid var(--c-sep); border-right: none;
-                padding: 0 0 5px; white-space: normal;
-                overflow: hidden;
-                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-            }
-            .audio-controls { flex-shrink: 0; gap: 4px; }
-            .btn-audio      { padding: 7px 0; font-size: 1.2em; }
-            /* Playlists 2×2 qui remplit la hauteur restante */
-            .playlists {
-                grid-template-columns: 1fr 1fr;
-                flex: 1; gap: 4px;
-                align-content: stretch;
-            }
-            .btn-pl { font-size: 0.62em; padding: 0 2px; height: 100%; }
+            /* Spotify masqué sur Ainavi — Android Auto gère la musique nativement */
+            .bottom-audio-bar { display: none; }
         }
     </style>
 </head>
@@ -738,35 +717,13 @@
             await fetch('/api/trip/reset', { method: 'POST' });
             refreshData();
         }
-        // Sur Android (AABrowser + Android Auto), Spotify API est bloquée par AA.
-        // On passe par le MediaBridgeService local (127.0.0.1:8765) qui dispatch
-        // les touches média — seule méthode qui fonctionne en Android Auto.
-        // Fallback sur l'API Pi si le bridge n'est pas joignable (hors AA).
-        const _isAndroid = /Android/i.test(navigator.userAgent);
-        const _bridge = { play:'/play', pause:'/pause', next:'/next', previous:'/previous' };
-
-        async function _bridgeOrApi(bridgePath, apiUrl, apiOpts) {
-            if (_isAndroid) {
-                try {
-                    await fetch('http://127.0.0.1:8765' + bridgePath, { mode: 'no-cors' });
-                    return;
-                } catch(_) {}
-            }
-            await fetch(apiUrl, apiOpts);
-        }
-
         let _spotifyLock = false;
         async function spotifyAction(action) {
             if (_spotifyLock) return;
             _spotifyLock = true;
             const btn = event.currentTarget;
             btn.style.opacity = '0.4';
-            try {
-                await _bridgeOrApi(
-                    _bridge[action] || '/play_pause',
-                    `/api/spotify/${action}`, { method: 'POST' }
-                );
-            } catch(_) {}
+            try { await fetch(`/api/spotify/${action}`, { method: 'POST' }); } catch(_) {}
             setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
         }
         async function playPlaylist(id) {
@@ -774,11 +731,7 @@
             _spotifyLock = true;
             const btn = event.currentTarget;
             btn.style.opacity = '0.4';
-            try {
-                // Les playlists ne passent pas par le bridge (touches media) —
-                // on utilise toujours l'API Pi pour ça.
-                await fetch(`/api/spotify/playlist?playlist_id=${id}`, { method: 'POST' });
-            } catch(_) {}
+            try { await fetch(`/api/spotify/playlist?playlist_id=${id}`, { method: 'POST' }); } catch(_) {}
             setTimeout(() => { btn.style.opacity = ''; _spotifyLock = false; }, 600);
         }
     </script>
