@@ -61,14 +61,25 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
         val pompeLabel = if (d.pompeDeCale) "💧 POMPE ON (${d.pompeTimer}s)" else "💧 POMPE CALE"
         val feuxLabel  = if (d.lumieresSousMarine) "🌊 FEUX ON" else "🌊 FEUX OFF"
 
+        // Row 1 : jauges
+        val gpsStr     = if (d.gpsFix) "🛰 GPS OK" else "🛰 No fix"
+        val weatherStr = if (d.weatherIcon.isNotEmpty()) "  •  🌤 ${d.weatherIcon} ${d.weatherTemp ?: "--"}°C" else ""
+        val row1 = Row.Builder()
+            .setTitle("⚡ %.1f km/h  •  🌊 %.1f m  •  📍 %.1f km".format(d.vitesseKmh, d.profondeur, d.tripKm))
+            .addText("$batIcon %.1f V  •  $gpsStr$weatherStr".format(d.batterie))
+            .build()
+
+        // Row 2 : musique (cliquable → MusicScreen)
+        val trackTitle  = d.musicTitle.takeIf { it.isNotEmpty() } ?: "Aucune lecture"
+        val trackArtist = d.musicArtist.takeIf { it.isNotEmpty() } ?: ""
+        val row2Builder = Row.Builder()
+            .setTitle("🎵 $trackTitle")
+            .setOnClickListener { screenManager.push(MusicScreen(carContext)) }
+        if (trackArtist.isNotEmpty()) row2Builder.addText(trackArtist)
+
         val paneBuilder = Pane.Builder()
-            .addRow(Row.Builder()
-                .setTitle("⚡ %.1f km/h  •  🌊 %.1f m".format(d.vitesseKmh, d.profondeur))
-                .addText("$batIcon %.1f V  •  ${if (d.gpsFix) "🛰 GPS OK" else "🛰 No fix"}".format(d.batterie))
-                .build())
-            .addRow(Row.Builder()
-                .setTitle("📍 %.2f km  |  %.2f nm".format(d.tripKm, d.tripKm / 1.852))
-                .build())
+            .addRow(row1)
+            .addRow(row2Builder.build())
             .addAction(Action.Builder()
                 .setTitle(pompeLabel)
                 .setBackgroundColor(if (d.pompeDeCale) CarColor.GREEN else CarColor.DEFAULT)
@@ -79,12 +90,6 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
                 .setBackgroundColor(if (d.lumieresSousMarine) CarColor.BLUE else CarColor.DEFAULT)
                 .setOnClickListener { triggerFeux() }
                 .build())
-
-        if (d.weatherIcon.isNotEmpty()) {
-            paneBuilder.addRow(Row.Builder()
-                .setTitle("🌤 ${d.weatherIcon} ${d.weatherTemp ?: "--"}°C")
-                .build())
-        }
 
         return PaneTemplate.Builder(paneBuilder.build())
             .setTitle("Boesch 510")
