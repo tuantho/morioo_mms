@@ -61,21 +61,24 @@
 
         html, body {
             width: 100%; height: 100%;
+            margin: 0; padding: 0;
             background: var(--c-bg);
-            color: var(--c-text);
-            font-family: 'Courier New', monospace;
             overflow: hidden;
         }
 
-        /* ── Layout racine : 2 colonnes (jauges | carte) ── */
+        /* ── Layout racine : position:fixed pour garantir le plein écran dans WebView ── */
         #app {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
             display: grid;
             grid-template-columns: 38% 1fr;
             grid-template-rows: auto 1fr;
             grid-template-areas:
                 "topbar topbar"
                 "left   map";
-            width: 100%; height: 100%;
+            color: var(--c-text);
+            font-family: 'Courier New', monospace;
+            background: var(--c-bg);
             padding: 4px;
             gap: 4px;
         }
