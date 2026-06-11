@@ -65,18 +65,23 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
             .addItem(Row.Builder()
                 .setTitle("⚡ %.1f km/h  •  🌊 %.1f m".format(vitesse, profondeur))
                 .addText("$batIcon %.1f V  •  $gpsStr  •  %.1f km".format(batterie, tripKm))
+                .setBrowsable(true)
+                .setOnClickListener { screenManager.push(DashboardScreen(carContext)) }
                 .build())
             .addItem(Row.Builder()
                 .setTitle(pompeLabel)
+                .setBrowsable(true)
                 .setOnClickListener { triggerPompe() }
                 .build())
             .addItem(Row.Builder()
                 .setTitle(feuxLabel)
+                .setBrowsable(true)
                 .setOnClickListener { triggerFeux() }
                 .build())
             .addItem(Row.Builder()
-                .setTitle("📋 Jauges détaillées")
-                .setOnClickListener { screenManager.push(DashboardScreen(carContext)) }
+                .setTitle("🎛 Contrôles avancés")
+                .setBrowsable(true)
+                .setOnClickListener { screenManager.push(ControlsScreen(carContext)) }
                 .build())
             .build()
 
