@@ -2,7 +2,16 @@ package com.morioo.mms
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
-import androidx.car.app.model.*
+import androidx.car.app.model.Action
+import androidx.car.app.model.CarColor
+import androidx.car.app.model.ItemList
+import androidx.car.app.model.LatLng
+import androidx.car.app.model.MessageTemplate
+import androidx.car.app.model.Place
+import androidx.car.app.model.PlaceListMapTemplate
+import androidx.car.app.model.PlaceMarker
+import androidx.car.app.model.Row
+import androidx.car.app.model.Template
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 
