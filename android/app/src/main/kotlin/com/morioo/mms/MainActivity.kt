@@ -3,19 +3,18 @@ package com.morioo.mms
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.webkit.*
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 class MainActivity : AppCompatActivity() {
@@ -30,20 +29,8 @@ class MainActivity : AppCompatActivity() {
         // Écran toujours allumé (dashboard bateau)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Plein écran immersif — API 30+ ou legacy
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let {
-                it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
-        }
+        // Permet à la WebView d'occuper toute la fenêtre y compris sous les barres système
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         swipeRefresh = SwipeRefreshLayout(this).apply {
             setColorSchemeColors(0xFF5B2BE0.toInt(), 0xFF50E3A4.toInt())
@@ -102,7 +89,7 @@ class MainActivity : AppCompatActivity() {
             text = "⚙"
             setTextColor(Color.parseColor("#5B2BE0"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            setBackgroundColor(Color.parseColor("#CC0d0812"))   // fond semi-transparent
+            setBackgroundColor(Color.parseColor("#CC0d0812"))
             setPadding(dp(12), dp(8), dp(12), dp(8))
             alpha = 0.80f
             setOnClickListener {
@@ -120,10 +107,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(frame)
+
+        // Masquer barres système après attachement de la vue (WindowCompat)
+        WindowInsetsControllerCompat(window, frame).let {
+            it.hide(WindowInsetsCompat.Type.systemBars())
+            it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
         webView.loadUrl(AppPreferences.piUrl)
 
-        // Bridge média local : permet au dashboard web (AABrowser) de contrôler
-        // Spotify via les touches média Android même quand AA a la session exclusive.
+        // Bridge média local
         startService(Intent(this, MediaBridgeService::class.java))
     }
 
