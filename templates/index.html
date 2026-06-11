@@ -194,6 +194,32 @@
 
         /* Les styles des modules (ex. anchor watch) sont injectés par leur propre JS. */
 
+        /* ── TÉLÉPHONE PORTRAIT (≤ 600px) ───────────────────────────────────
+           Layout colonne, plein écran, pas de scroll :
+           top-bar | jauges (28vh) | carte (flex) | contrôles | audio      */
+        @media (max-width: 600px) and (orientation: portrait) {
+            body { height: 100dvh; overflow: hidden; padding: 4px; gap: 4px; }
+
+            .main-container { flex: 1; min-height: 0; gap: 4px; }
+            .left-panel { height: 100%; overflow: hidden; }
+
+            .gauges-container { height: 26vh; min-height: 0; padding: 4px 2px; }
+            .gauge-box { font-size: 0.6em; }
+
+            /* Carte prend tout l'espace restant */
+            #map { flex: 1; height: auto; min-height: 0; max-height: none; }
+
+            .lights-container { grid-auto-rows: auto; gap: 4px; }
+            .btn-toggle { padding: 6px 4px; font-size: 0.72em; }
+
+            .odo-container { padding: 4px 8px; }
+            .odo-value { font-size: 0.8em; }
+            .odo-label { font-size: 0.5em; }
+            .btn-reset { padding: 4px 7px; font-size: 0.65em; }
+
+            .bottom-audio-bar { display: none; }
+        }
+
         /* ── PAYSAGE COMPACT : téléphone/tablette paysage (640–899px) ──────
            Deux colonnes, tout en hauteur, pas de scroll.                    */
         @media (min-width: 640px) and (max-width: 899px) and (orientation: landscape) {
@@ -577,8 +603,8 @@
             // Largeur disponible par jauge (3 jauges côte à côte)
             const byWidth  = Math.floor((container.offsetWidth  - 16) / 3 * 0.96);
             const byHeight = Math.floor( container.offsetHeight * 0.86);
-            // Écran autoradio (ratio ≥ 2.5:1) : plafond relevé pour des jauges plus lisibles
-            const isCarScreen = window.innerWidth / window.innerHeight >= 2.5;
+            // Écran autoradio / phone paysage (ratio ≥ 2:1) : plafond relevé pour des jauges plus lisibles
+            const isCarScreen = window.innerWidth / window.innerHeight >= 2.0;
             const maxSize = isCarScreen ? 150 : 240;
             const size    = Math.max(60, Math.min(byWidth, byHeight, maxSize));
             ['gauge-vitesse', 'gauge-profondeur', 'gauge-batterie'].forEach(id => {
