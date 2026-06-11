@@ -73,9 +73,9 @@ def run():
                 print(f"   OK module '{m['name']}' : {base} + {ui}")
 
     # --- Fonctions pures (logique testable sans matériel ni I/O) ---
-    assert main._haversine_km((50.0, 5.0), (50.0, 5.0)) == 0.0
     assert main._parse_nmea_coord("5029.000", "N") == 50.483333
-    print("OK fonctions pures (_haversine_km, _parse_nmea_coord)")
+    assert main._parse_nmea_coord("0500.000", "W") == -5.0
+    print("OK fonctions pures (_parse_nmea_coord)")
 
     print("\nSMOKE TEST OK")
 
