@@ -89,12 +89,16 @@ class MapScreen(carContext: CarContext) : Screen(carContext), SurfaceCallback {
             .setActionStrip(
                 ActionStrip.Builder()
                     .addAction(Action.Builder()
-                        .setTitle(gpsLabel)
-                        .setOnClickListener {}
+                        .setTitle("+ Zoom")
+                        .setOnClickListener {
+                            if (zoom < ZOOM_MAX) { zoom++; render() }
+                        }
                         .build())
                     .addAction(Action.Builder()
-                        .setTitle(vitLabel)
-                        .setOnClickListener {}
+                        .setTitle("− Zoom")
+                        .setOnClickListener {
+                            if (zoom > ZOOM_MIN) { zoom--; render() }
+                        }
                         .build())
                     .addAction(Action.Builder()
                         .setTitle("📋 Jauges")
@@ -103,22 +107,6 @@ class MapScreen(carContext: CarContext) : Screen(carContext), SurfaceCallback {
                     .addAction(Action.Builder()
                         .setTitle("🎛 Contrôles")
                         .setOnClickListener { screenManager.push(ControlsScreen(carContext)) }
-                        .build())
-                    .build()
-            )
-            .setMapActionStrip(
-                ActionStrip.Builder()
-                    .addAction(Action.Builder()
-                        .setTitle("+")
-                        .setOnClickListener {
-                            if (zoom < ZOOM_MAX) { zoom++; render() }
-                        }
-                        .build())
-                    .addAction(Action.Builder()
-                        .setTitle("−")
-                        .setOnClickListener {
-                            if (zoom > ZOOM_MIN) { zoom--; render() }
-                        }
                         .build())
                     .build()
             )
