@@ -6,5 +6,5 @@ import androidx.car.app.Session
 
 class MoriooSession : Session() {
     override fun onCreateScreen(intent: Intent): Screen =
-        DashboardScreen(carContext)
+        MapScreen(carContext)
 }

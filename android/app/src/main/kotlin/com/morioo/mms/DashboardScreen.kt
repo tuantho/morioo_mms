@@ -92,8 +92,8 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
                 .build())
 
         return PaneTemplate.Builder(paneBuilder.build())
-            .setTitle("Boesch 510")
-            .setHeaderAction(Action.APP_ICON)
+            .setTitle("Boesch 510 — Jauges")
+            .setHeaderAction(Action.BACK)
             .build()
     }
 
