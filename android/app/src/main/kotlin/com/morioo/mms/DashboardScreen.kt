@@ -1,27 +1,11 @@
 package com.morioo.mms
 
 import androidx.car.app.CarContext
-import androidx.car.app.Screen
 import androidx.car.app.model.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 
-class DashboardScreen(carContext: CarContext) : Screen(carContext) {
-
-    private var data: ApiClient.BoatData? = null
-    private var connectionError = false
-
-    init {
-        lifecycleScope.launch {
-            while (true) {
-                val d = withContext(Dispatchers.IO) { ApiClient.getStatus() }
-                connectionError = (d == null)
-                data = d
-                invalidate()
-                delay(2000)
-            }
-        }
-    }
+class DashboardScreen(carContext: CarContext) : PollingScreen(carContext, 2_000) {
 
     override fun onGetTemplate(): Template = try {
         buildTemplate()
@@ -58,24 +42,27 @@ class DashboardScreen(carContext: CarContext) : Screen(carContext) {
             else -> "⚠️"
         }
 
-        val pompeLabel = if (d.pompeDeCale) "💧 POMPE ON (${d.pompeTimer}s)" else "💧 POMPE CALE"
+        val pompeLabel = if (d.pompeDeCale) "💧 POMPE ON" else "💧 POMPE CALE"
         val feuxLabel  = if (d.lumieresSousMarine) "🌊 FEUX ON" else "🌊 FEUX OFF"
+
+        // ⚠️ Quota de templates : titres de rows constants, valeurs dans addText
+        // (un titre qui change n'est pas un « refresh » → l'host gèle après ~5).
 
         // Row 1 : jauges
         val gpsStr     = if (d.gpsFix) "🛰 GPS OK" else "🛰 No fix"
-        val weatherStr = if (d.weatherIcon.isNotEmpty()) "  •  🌤 ${d.weatherIcon} ${d.weatherTemp ?: "--"}°C" else ""
+        val weatherStr = if (d.weatherIcon.isNotEmpty()) "  •  ${d.weatherIcon} ${d.weatherTemp ?: "--"}°C" else ""
         val row1 = Row.Builder()
-            .setTitle("⚡ %.1f km/h  •  🌊 %.1f m  •  📍 %.1f km".format(d.vitesseKmh, d.profondeur, d.tripKm))
+            .setTitle("⚡ Jauges")
+            .addText("%.1f km/h  •  🌊 %.1f m  •  📍 %.1f km".format(d.vitesseKmh, d.profondeur, d.tripKm))
             .addText("$batIcon %.1f V  •  $gpsStr$weatherStr".format(d.batterie))
             .build()
 
         // Row 2 : musique (cliquable → MusicScreen)
-        val trackTitle  = d.musicTitle.takeIf { it.isNotEmpty() } ?: "Aucune lecture"
-        val trackArtist = d.musicArtist.takeIf { it.isNotEmpty() } ?: ""
         val row2Builder = Row.Builder()
-            .setTitle("🎵 $trackTitle")
+            .setTitle("🎵 Musique")
+            .addText(d.musicTitle.takeIf { it.isNotEmpty() } ?: "Aucune lecture")
             .setOnClickListener { screenManager.push(MusicScreen(carContext)) }
-        if (trackArtist.isNotEmpty()) row2Builder.addText(trackArtist)
+        if (d.musicArtist.isNotEmpty()) row2Builder.addText(d.musicArtist)
 
         val paneBuilder = Pane.Builder()
             .addRow(row1)

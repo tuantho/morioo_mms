@@ -10,6 +10,12 @@ object ApiClient {
     // URL du Pi — configurable via SettingsActivity (AppPreferences)
     private val BASE get() = AppPreferences.piUrl
 
+    // La météo ne change pas à la seconde : cache 60 s pour ne pas taper
+    // /api/weather à chaque poll des écrans (toutes les 1-2 s).
+    private const val WEATHER_TTL_MS = 60_000L
+    private var weatherCache: JSONObject? = null
+    private var weatherFetchedAt = 0L
+
     data class BoatData(
         val vitesseKmh:          Double,
         val profondeur:          Double,
@@ -36,8 +42,8 @@ object ApiClient {
         val trip   = j.optJSONObject("trip")
         val anchor = j.optJSONObject("anchor")
 
-        // Météo depuis /api/weather (appel séparé, on absorbe les erreurs)
-        val w = try { get("/api/weather") } catch (e: Exception) { null }
+        // Météo depuis /api/weather (cache 60 s, on absorbe les erreurs)
+        val w = getWeather()
 
         return BoatData(
             vitesseKmh         = j.optDouble("vitesse", 0.0) * 1.852,
@@ -85,6 +91,14 @@ object ApiClient {
             listOf(pt.getDouble(0), pt.getDouble(1))
         }
     } catch (e: Exception) { emptyList() }
+
+    private fun getWeather(): JSONObject? {
+        val now = System.currentTimeMillis()
+        if (now - weatherFetchedAt < WEATHER_TTL_MS) return weatherCache
+        weatherFetchedAt = now   // même en cas d'échec : pas de retry avant le prochain TTL
+        get("/api/weather")?.let { weatherCache = it }
+        return weatherCache
+    }
 
     private fun get(path: String): JSONObject? = try {
         val conn = (URL("$BASE$path").openConnection() as HttpURLConnection).apply {

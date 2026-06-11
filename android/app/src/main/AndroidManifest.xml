@@ -6,11 +6,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Car App Library : templates avec carte -->
     <uses-permission android:name="androidx.car.app.MAP_TEMPLATES" />
-    <!-- Surface rendering pour la carte -->
-    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
-    <!-- Bridge média local (foreground service sur 127.0.0.1:8765) -->
+    <!-- Bridge média local (foreground service sur 127.0.0.1:8765).
+         Type specialUse : mediaPlayback est interdit au lancement depuis
+         BOOT_COMPLETED sur Android 15+ (ForegroundServiceStartNotAllowedException),
+         et ce service ne lit pas de média — il relaie des touches. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Auto-démarrage au boot (pour que le bridge soit actif sans ouvrir l'app) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -52,22 +53,15 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Activity Android Auto (Car App Library) -->
-        <activity
-            android:name="androidx.car.app.activity.CarAppActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-            <meta-data
-                android:name="distractionOptimized"
-                android:value="true" />
-        </activity>
-
         <!-- Bridge média local : contrôle touches média depuis le dashboard web -->
         <service
             android:name=".MediaBridgeService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Pont HTTP local (127.0.0.1:8765) vers les touches média" />
+        </service>
 
         <!-- Démarre MediaBridgeService automatiquement au boot -->
         <receiver

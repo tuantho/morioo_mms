@@ -4,24 +4,9 @@ import android.content.Context
 import android.media.AudioManager
 import android.view.KeyEvent
 import androidx.car.app.CarContext
-import androidx.car.app.Screen
 import androidx.car.app.model.*
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.*
 
-class MusicScreen(carContext: CarContext) : Screen(carContext) {
-
-    private var data: ApiClient.BoatData? = null
-
-    init {
-        lifecycleScope.launch {
-            while (true) {
-                data = withContext(Dispatchers.IO) { ApiClient.getStatus() }
-                invalidate()
-                delay(2000)
-            }
-        }
-    }
+class MusicScreen(carContext: CarContext) : PollingScreen(carContext, 2_000) {
 
     override fun onGetTemplate(): Template = try {
         buildTemplate()
@@ -35,11 +20,11 @@ class MusicScreen(carContext: CarContext) : Screen(carContext) {
     private fun buildTemplate(): Template {
         val d = data
 
-        val title  = d?.musicTitle?.takeIf { it.isNotEmpty() } ?: "Aucune lecture en cours"
-        val artist = d?.musicArtist?.takeIf { it.isNotEmpty() } ?: ""
-
-        val rowBuilder = Row.Builder().setTitle(title)
-        if (artist.isNotEmpty()) rowBuilder.addText(artist)
+        // ⚠️ Quota de templates : titre de row constant, la piste va dans addText
+        val rowBuilder = Row.Builder()
+            .setTitle("🎵 Musique")
+            .addText(d?.musicTitle?.takeIf { it.isNotEmpty() } ?: "Aucune lecture en cours")
+        d?.musicArtist?.takeIf { it.isNotEmpty() }?.let { rowBuilder.addText(it) }
 
         val pane = Pane.Builder()
             .addRow(rowBuilder.build())

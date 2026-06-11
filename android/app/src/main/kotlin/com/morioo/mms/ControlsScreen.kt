@@ -1,38 +1,36 @@
 package com.morioo.mms
 
 import androidx.car.app.CarContext
-import androidx.car.app.Screen
 import androidx.car.app.model.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 
-class ControlsScreen(carContext: CarContext) : Screen(carContext) {
+class ControlsScreen(carContext: CarContext) : PollingScreen(carContext, 2_000) {
 
-    private var data: ApiClient.BoatData? = null
-
-    init {
-        lifecycleScope.launch {
-            while (true) {
-                data = withContext(Dispatchers.IO) { ApiClient.getStatus() }
-                invalidate()
-                delay(2000)
-            }
-        }
+    override fun onGetTemplate(): Template = try {
+        buildTemplate()
+    } catch (e: Exception) {
+        MessageTemplate.Builder("Erreur : ${e.message}")
+            .setTitle("Contrôles")
+            .setHeaderAction(Action.BACK)
+            .build()
     }
 
-    override fun onGetTemplate(): Template {
+    private fun buildTemplate(): Template {
         val d = data
         val items = ItemList.Builder()
 
-        // --- 💧 Pompe de cale ---
-        val pompeTitle = if (d?.pompeDeCale == true && d.pompeTimer > 0)
-            "💧 Pompe de cale (${d.pompeTimer}s)"
-        else
-            "💧 Pompe de cale"
+        // ⚠️ Quota de templates : titres de rows constants, état/timer dans
+        // addText (un titre qui change n'est pas un « refresh »).
 
+        // --- 💧 Pompe de cale ---
         items.addItem(Row.Builder()
-            .setTitle(pompeTitle)
-            .addText(if (d?.pompeDeCale == true) "En marche — arrêt auto" else "Arrêtée")
+            .setTitle("💧 Pompe de cale")
+            .addText(when {
+                d?.pompeDeCale == true && d.pompeTimer > 0 -> "En marche — arrêt auto dans ${d.pompeTimer} s"
+                d?.pompeDeCale == true                     -> "En marche — arrêt auto"
+                else                                       -> "Arrêtée"
+            })
             .setToggle(Toggle.Builder { _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     ApiClient.post("/api/switch/pompe_de_cale")

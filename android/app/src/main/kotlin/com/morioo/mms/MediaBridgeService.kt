@@ -9,6 +9,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
@@ -141,6 +142,12 @@ class MediaBridgeService : Service() {
             .setOngoing(true)
             .setSilent(true)
             .build()
-        startForeground(NOTIF_ID, notif)
+        try {
+            startForeground(NOTIF_ID, notif)
+        } catch (e: Exception) {
+            // FGS refusé (ex. restrictions de lancement au boot sur Android 15+) :
+            // on continue en service background — moins prioritaire, mais pas de crash.
+            Log.w("Morioo", "startForeground refusé : ${e.message}")
+        }
     }
 }

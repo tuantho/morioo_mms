@@ -1,46 +1,29 @@
 package com.morioo.mms
 
 import androidx.car.app.CarContext
-import androidx.car.app.Screen
 import androidx.car.app.model.Action
+import androidx.car.app.model.CarLocation
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.MessageTemplate
+import androidx.car.app.model.Place
 import androidx.car.app.model.PlaceListMapTemplate
+import androidx.car.app.model.PlaceMarker
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 
-class MapScreen(carContext: CarContext) : Screen(carContext) {
-
-    private var gpsFix     = false
-    private var vitesse    = 0.0
-    private var profondeur = 0.0
-    private var batterie   = 0.0
-    private var tripKm     = 0.0
-    private var pompeDeCale        = false
-    private var lumieresSousMarine = false
-    private var pompeTimer = 0
-
-    init {
-        lifecycleScope.launch {
-            while (true) {
-                val d = withContext(Dispatchers.IO) { ApiClient.getStatus() }
-                if (d != null) {
-                    gpsFix     = d.gpsFix
-                    vitesse    = d.vitesseKmh
-                    profondeur = d.profondeur
-                    batterie   = d.batterie
-                    tripKm     = d.tripKm
-                    pompeDeCale        = d.pompeDeCale
-                    lumieresSousMarine = d.lumieresSousMarine
-                    pompeTimer = d.pompeTimer
-                }
-                invalidate()
-                delay(1000)
-            }
-        }
-    }
+/**
+ * Écran principal Android Auto : carte de l'host (PlaceListMapTemplate)
+ * ancrée sur la position GPS du bateau — fournie par le Pi, donc aucune
+ * permission de localisation téléphone requise (setCurrentLocationEnabled
+ * reste à false).
+ *
+ * ⚠️ Quota de templates : un update n'est un « refresh » gratuit que si les
+ * TITRES des rows ne changent pas (~5 templates par tâche, ensuite l'host
+ * gèle l'UI). Les valeurs dynamiques vont dans addText(), jamais en titre.
+ */
+class MapScreen(carContext: CarContext) : PollingScreen(carContext, 1_000) {
 
     override fun onGetTemplate(): Template = try {
         buildTemplate()
@@ -52,29 +35,40 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun buildTemplate(): Template {
-        val gpsStr  = if (gpsFix) "🛰 GPS FIX" else "🛰 NO FIX"
+        // Pas encore de données : état loading (le passage loading → contenu
+        // est toujours considéré comme un refresh par l'host).
+        val d = data ?: return PlaceListMapTemplate.Builder()
+            .setTitle("Boesch 510")
+            .setHeaderAction(Action.APP_ICON)
+            .setCurrentLocationEnabled(false)
+            .setLoading(true)
+            .build()
+
+        val gpsStr  = if (d.gpsFix) "🛰 GPS FIX" else "🛰 NO FIX"
         val batIcon = when {
-            batterie >= 12.6 -> "🔋"
-            batterie >= 12.0 -> "🪫"
+            d.batterie >= 12.6 -> "🔋"
+            d.batterie >= 12.0 -> "🪫"
             else -> "⚠️"
         }
-        val pompeLabel = if (pompeDeCale) "💧 POMPE : ON (${pompeTimer}s)" else "💧 Pompe de cale : OFF"
-        val feuxLabel  = if (lumieresSousMarine) "🌊 Feux : ON" else "🌊 Feux sous-marins : OFF"
 
         val items = ItemList.Builder()
             .addItem(Row.Builder()
-                .setTitle("⚡ %.1f km/h  •  🌊 %.1f m".format(vitesse, profondeur))
-                .addText("$batIcon %.1f V  •  $gpsStr  •  %.1f km".format(batterie, tripKm))
+                .setTitle("⚡ Jauges")
+                .addText("%.1f km/h  •  🌊 %.1f m  •  📍 %.1f km"
+                    .format(d.vitesseKmh, d.profondeur, d.tripKm))
+                .addText("$batIcon %.1f V  •  $gpsStr".format(d.batterie))
                 .setBrowsable(true)
                 .setOnClickListener { screenManager.push(DashboardScreen(carContext)) }
                 .build())
             .addItem(Row.Builder()
-                .setTitle(pompeLabel)
+                .setTitle("💧 Pompe de cale")
+                .addText(if (d.pompeDeCale) "ON — arrêt auto dans ${d.pompeTimer} s" else "OFF")
                 .setBrowsable(true)
                 .setOnClickListener { triggerPompe() }
                 .build())
             .addItem(Row.Builder()
-                .setTitle(feuxLabel)
+                .setTitle("🌊 Feux sous-marins")
+                .addText(if (d.lumieresSousMarine) "ON" else "OFF")
                 .setBrowsable(true)
                 .setOnClickListener { triggerFeux() }
                 .build())
@@ -89,6 +83,10 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
             .setCurrentLocationEnabled(false)
+            // CarLocation, PAS LatLng (LatLng = Maps SDK, absent d'ici)
+            .setAnchor(Place.Builder(CarLocation.create(d.lat, d.lon))
+                .setMarker(PlaceMarker.Builder().build())
+                .build())
             .setItemList(items)
             .build()
     }
