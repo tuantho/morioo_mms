@@ -4,6 +4,8 @@
     <!-- Réseau vers le Pi (HTTP non chiffré sur le réseau bateau) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Car App Library : templates avec carte -->
+    <uses-permission android:name="androidx.car.app.MAP_TEMPLATES" />
     <!-- Surface rendering pour la carte -->
     <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
     <!-- Bridge média local (foreground service sur 127.0.0.1:8765) -->
