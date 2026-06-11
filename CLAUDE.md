@@ -226,25 +226,39 @@ via USB depuis le **Pixel 8**. Le Pi et le téléphone sont sur le même réseau
 
 | Fichier | Rôle |
 |---------|------|
-| `MoriooCarService.kt` | Point d'entrée `CarAppService` |
-| `MoriooSession.kt` | Session + écran d'accueil |
-| `ApiClient.kt` | HTTP vers `http://rasp-boesch:8000` — modifier `BASE` si hostname ne résout pas |
-| `DashboardScreen.kt` | Jauges (vitesse, profondeur, batterie, GPS, ODO, musique, météo) |
-| `ControlsScreen.kt` | Pompe de cale (30 s auto-OFF) + feux sous-marins |
-| `MapScreen.kt` | Carte CartoDB Dark sur `Surface` Android Auto + trace GPS |
-| `TileCache.kt` | Cache LRU 80 tuiles OSM |
+| `MoriooCarService.kt` | Point d'entrée `CarAppService` (category POI) |
+| `MoriooSession.kt` | Session → `MapScreen` en écran d'accueil |
+| `ApiClient.kt` | HTTP vers le Pi (URL configurable via `AppPreferences`/⚙) + cache météo 60 s |
+| `PollingScreen.kt` | Base des écrans : poll `/api/status` tant que l'écran est visible (`repeatOnLifecycle(STARTED)`) |
+| `MapScreen.kt` | Écran principal : `PlaceListMapTemplate` ancré sur la position GPS du bateau + rows jauges/pompe/feux |
+| `DashboardScreen.kt` | Jauges détaillées (vitesse, profondeur, batterie, GPS, ODO, musique, météo) |
+| `ControlsScreen.kt` | Pompe de cale (30 s auto-OFF), feux sous-marins, alarme de mouillage |
+| `MusicScreen.kt` | Piste en cours + touches média (prev/next/play-pause) |
+| `MainActivity.kt` | App téléphone : WebView plein écran → dashboard Pi |
+| `MediaBridgeService.kt` | Pont HTTP local `127.0.0.1:8765` → touches média (FGS `specialUse`) |
 
 ### Contraintes & pièges Android Auto
 
-- **Car App Library** : `NavigationTemplate` nécessite la category
-  `androidx.car.app.category.NAVIGATION` dans le Manifest **et** la permission
-  `androidx.car.app.ACCESS_SURFACE` pour le rendu de carte.
-- **`AppManager`** : utiliser `carContext.getCarService(AppManager::class.java).setSurfaceCallback(this)` — `AppManager.create()` est package-private depuis la 1.3+.
-- **`SurfaceContainer.surface`** est nullable depuis la 1.4 → toujours tester avant `lockCanvas`.
+- **Quota de templates (PIÈGE MAJEUR)** : l'host n'accepte que ~5 templates par
+  tâche ; un update n'est un « refresh » gratuit **que si le titre du template
+  et les TITRES des rows ne changent pas** (javadoc des templates). Donc :
+  valeurs dynamiques (vitesse, timer pompe…) **dans `addText()`, jamais dans
+  `setTitle()`** — sinon l'UI gèle après quelques secondes de polling.
+- **`PlaceListMapTemplate`** : category `androidx.car.app.category.POI` +
+  permission `androidx.car.app.MAP_TEMPLATES` dans le Manifest. Toutes les rows
+  doivent être `setBrowsable(true)`. `setCurrentLocationEnabled(true)`
+  exigerait `ACCESS_FINE_LOCATION` → rester à `false`, le GPS vient du Pi via
+  `setAnchor(Place(CarLocation…))`.
+- **`CarLocation`, pas `LatLng`** : `LatLng` est une classe du Maps SDK,
+  absente de la Car App Library — l'import ne compile pas.
+- **FGS au boot (Android 15+)** : un receiver `BOOT_COMPLETED` ne peut pas
+  lancer un foreground service `mediaPlayback`
+  (`ForegroundServiceStartNotAllowedException`) → `MediaBridgeService` est en
+  type `specialUse`, et son `startForeground` est sous try/catch.
 - **HTTP cleartext** : `android:usesCleartextTraffic="true"` requis (Pi = HTTP non chiffré).
-- **Build** : AGP 8.3.2 + Gradle 8.6 + Java 17 + compileSdk/targetSdk 35.
-  Ne pas changer les versions sans tester — des incompatibilités subtiles existent.
-- **Tuiles CartoDB** : `https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png` — même thème sombre que le dashboard Pi.
+- **Build** : Kotlin 2.2.10 + AGP 8.7.3 + Gradle 8.11.1 + Java 17 +
+  compileSdk/targetSdk 35. Ne pas changer les versions sans tester — des
+  incompatibilités subtiles existent.
 
 ### Build
 
