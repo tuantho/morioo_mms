@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
             it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        webView.loadUrl(AppPreferences.piUrl)
+        webView.loadUrl(AppPreferences.piUrl.trimEnd('/') + "/android")
 
         // Bridge média local
         startService(Intent(this, MediaBridgeService::class.java))
@@ -123,8 +123,8 @@ class MainActivity : AppCompatActivity() {
     // Après retour des Settings : recharger avec la nouvelle URL si elle a changé
     override fun onResume() {
         super.onResume()
+        val target = AppPreferences.piUrl.trimEnd('/') + "/android"
         val current = webView.url ?: ""
-        val target  = AppPreferences.piUrl
         if (!current.startsWith(target)) {
             webView.loadUrl(target)
         }

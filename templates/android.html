@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Boesch 510</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --c-bg:           #0d0802;
+            --c-panel:        #160e05;
+            --c-border:       #8e6f43;
+            --c-sep:          #3d2510;
+            --c-text:         #ffeedd;
+            --c-label:        #d4a373;
+            --c-muted:        #8e6f43;
+            --c-btn:          #5c1d06;
+            --c-btn-fire:     #3d1010;
+            --c-map-bg:       #0c1117;
+            --c-gps-fix:      #38b000;
+            --c-gps-nofix:    #8e6f43;
+            --c-gps-nbord:    #3d2510;
+            --c-pump-active:  #2b5c06;
+            --c-pump-glow:    #38b000;
+            --c-light-active: #005f73;
+            --c-light-glow:   #0a9396;
+            --c-g-dial: #050301;
+            --c-g-ring: #8e6f43;
+            --c-g-arc:  #d4a373;
+            --c-g-tick: #aa8259;
+            --c-g-hub:  #8e6f43;
+            --c-g-val:  #ffffff;
+        }
+        [data-theme="day"] {
+            --c-bg:           #ddd7c0;
+            --c-panel:        #eee8d0;
+            --c-border:       #7a5e30;
+            --c-sep:          #b8a060;
+            --c-text:         #140e00;
+            --c-label:        #3c2800;
+            --c-muted:        #6a5028;
+            --c-btn:          #b86018;
+            --c-btn-fire:     #9a2e18;
+            --c-map-bg:       #c8c4b0;
+            --c-gps-fix:      #1a7200;
+            --c-gps-nofix:    #7a5e30;
+            --c-gps-nbord:    #a08050;
+            --c-pump-active:  #1d6a00;
+            --c-pump-glow:    #28a000;
+            --c-light-active: #005060;
+            --c-light-glow:   #007080;
+            --c-g-dial: #e8e0c8;
+            --c-g-ring: #7a5e30;
+            --c-g-arc:  #5a4010;
+            --c-g-tick: #4a3010;
+            --c-g-hub:  #7a5e30;
+            --c-g-val:  #140e00;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%; height: 100%;
+            background: var(--c-bg);
+            color: var(--c-text);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        /* ── Layout racine : 2 colonnes (jauges | carte) ── */
+        #app {
+            display: grid;
+            grid-template-columns: 38% 1fr;
+            grid-template-rows: auto 1fr;
+            grid-template-areas:
+                "topbar topbar"
+                "left   map";
+            width: 100%; height: 100%;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        /* ── Top bar ── */
+        #top-bar {
+            grid-area: topbar;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 2px 6px; flex-shrink: 0;
+        }
+        #title  { font-size: 1em; color: var(--c-label); font-weight: bold; cursor: pointer; }
+        #clock  { font-size: 1em; color: var(--c-muted); font-weight: bold; letter-spacing: 2px; }
+        #gps-indicator {
+            font-size: 0.7em; font-weight: bold;
+            padding: 2px 6px; border-radius: 6px; border: 1px solid var(--c-gps-nbord);
+        }
+        #gps-indicator.fix   { color: var(--c-gps-fix);   border-color: var(--c-gps-fix); }
+        #gps-indicator.nofix { color: var(--c-gps-nofix); border-color: var(--c-gps-nbord); }
+        #btn-theme {
+            background: none; border: 1px solid var(--c-border);
+            border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 0.9em;
+        }
+
+        /* ── Colonne gauche ── */
+        #left {
+            grid-area: left;
+            display: flex; flex-direction: column; gap: 4px;
+            overflow: hidden; min-height: 0;
+        }
+
+        /* Jauges */
+        #gauges {
+            display: flex; justify-content: space-around; align-items: center;
+            background: var(--c-panel); border: 2px solid var(--c-border);
+            border-radius: 10px; padding: 4px 2px;
+            flex: 1; min-height: 0;
+        }
+        .gauge-box { text-align: center; font-size: 0.6em; color: var(--c-label); font-weight: bold; width: 32%; }
+        canvas { display: block; margin: 0 auto; }
+
+        /* Boutons relais */
+        #controls {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+        }
+        .btn-toggle {
+            background: var(--c-btn); color: var(--c-text);
+            border: 2px solid var(--c-border);
+            padding: 8px 4px; font-size: 0.65em;
+            border-radius: 8px; cursor: pointer; font-weight: bold;
+            text-transform: uppercase; text-align: center;
+        }
+        .btn-toggle.active { background: var(--c-pump-active); box-shadow: 0 0 10px var(--c-pump-glow); }
+        .btn-toggle.underwater-btn.active { background: var(--c-light-active); box-shadow: 0 0 10px var(--c-light-glow); }
+
+        /* ODO */
+        #odo {
+            display: flex; align-items: center; gap: 4px;
+            background: var(--c-panel); border: 2px solid var(--c-border);
+            border-radius: 8px; padding: 4px 8px;
+        }
+        .odo-block { flex: 1; text-align: center; border-right: 1px solid var(--c-sep); }
+        .odo-block:last-of-type { border-right: none; }
+        .odo-label { color: var(--c-muted); font-size: 0.5em; text-transform: uppercase; }
+        .odo-value { color: var(--c-text); font-size: 0.75em; font-weight: bold; }
+        #btn-reset {
+            background: var(--c-btn-fire); color: var(--c-text); border: 1px solid var(--c-border);
+            padding: 4px 6px; font-size: 0.6em; border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+
+        /* ── Carte ── */
+        #map {
+            grid-area: map;
+            border: 2px solid var(--c-border); border-radius: 10px;
+            background: var(--c-map-bg);
+            width: 100%; height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div id="top-bar">
+        <div id="title" onclick="location.reload()">BOESCH 510</div>
+        <div id="gps-indicator" class="nofix">🛰 NO FIX</div>
+        <button id="btn-theme" onclick="toggleTheme()">☀️</button>
+        <div id="clock">--:--:--</div>
+    </div>
+
+    <div id="left">
+        <div id="gauges">
+            <div class="gauge-box">
+                <canvas id="gauge-vitesse" width="100" height="100"></canvas>
+                <div>VITESSE km/h</div>
+            </div>
+            <div class="gauge-box">
+                <canvas id="gauge-profondeur" width="100" height="100"></canvas>
+                <div>PROFONDEUR m</div>
+            </div>
+            <div class="gauge-box">
+                <canvas id="gauge-batterie" width="100" height="100"></canvas>
+                <div>BATTERIE V</div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button id="btn-pump" class="btn-toggle" onclick="toggleRelay('pompe_de_cale')">💧 POMPE CALE</button>
+            <button id="btn-underwater" class="btn-toggle underwater-btn" onclick="toggleRelay('lumieres_sous_marines')">🌊 FEUX SOUS-MARINS</button>
+        </div>
+
+        <div id="odo">
+            <div class="odo-block"><div class="odo-label">Distance</div><div class="odo-value" id="odo-km">0.00 km</div></div>
+            <div class="odo-block"><div class="odo-label">Milles</div><div class="odo-value" id="odo-nm">0.00 nm</div></div>
+            <div class="odo-block"><div class="odo-label">Durée</div><div class="odo-value" id="odo-temps">0h 00m</div></div>
+            <button id="btn-reset" onclick="resetTrip()">RESET</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // ── Carte ──
+    const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([50.4901, 5.1002], 14);
+    let _baseTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+    L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
+
+    const boatMarker = L.circleMarker([50.4901, 5.1002], {
+        color: '#ff4500', fillColor: '#ff4500', fillOpacity: 1, radius: 9
+    }).addTo(map);
+
+    const trailLine = L.polyline([], { color: '#ff4500', weight: 2, opacity: 0.5 }).addTo(map);
+
+    let followBoat = true, lastPos = null, recenterBtn = null;
+    function setFollow(on) {
+        followBoat = on;
+        if (recenterBtn) recenterBtn.style.display = on ? 'none' : 'block';
+    }
+    const RecenterControl = L.Control.extend({
+        options: { position: 'bottomright' },
+        onAdd: function () {
+            const btn = L.DomUtil.create('button', '');
+            btn.innerHTML = '🎯 Recentrer';
+            btn.style.cssText = 'background:var(--c-panel);color:var(--c-label);border:2px solid var(--c-border);'
+                + 'border-radius:10px;padding:10px 14px;font-size:0.9em;font-weight:bold;cursor:pointer;'
+                + 'box-shadow:0 2px 8px rgba(0,0,0,0.5);display:none;font-family:monospace;';
+            L.DomEvent.disableClickPropagation(btn);
+            L.DomEvent.on(btn, 'click', () => { setFollow(true); if (lastPos) map.setView(lastPos, map.getZoom()); });
+            recenterBtn = btn;
+            return btn;
+        }
+    });
+    map.addControl(new RecenterControl());
+    map.on('dragstart zoomstart', () => setFollow(false));
+
+    // ── Jauges ──
+    function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+    function drawGauge(id, value, minVal, maxVal, color) {
+        const c = document.getElementById(id);
+        const ctx = c.getContext('2d');
+        const cx = c.width / 2, cy = c.height / 2;
+        const r = c.width * 0.44;
+        const vf = Math.round(c.width * 0.16), tf = Math.round(c.width * 0.073);
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI);
+        ctx.fillStyle = cssVar('--c-g-dial'); ctx.fill();
+        ctx.lineWidth = Math.max(2, c.width * 0.022); ctx.strokeStyle = cssVar('--c-g-ring'); ctx.stroke();
+        const sa = 0.75*Math.PI, ea = 2.25*Math.PI;
+        ctx.beginPath(); ctx.arc(cx, cy, r - c.width*0.063, sa, ea);
+        ctx.lineWidth = Math.max(1, c.width*0.014); ctx.strokeStyle = cssVar('--c-g-arc'); ctx.stroke();
+        ctx.fillStyle = cssVar('--c-g-tick'); ctx.font = `bold ${tf}px Courier New`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const off = r - c.width*0.14;
+        ctx.fillText(minVal, cx-off, cy+off); ctx.fillText(maxVal, cx+off, cy+off);
+        const pct = Math.min(1, Math.max(0, (value-minVal)/(maxVal-minVal)));
+        const na = sa + pct*(ea-sa), tip = r - c.width*0.082, base = c.width*0.027;
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(na);
+        ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(tip, 0); ctx.lineTo(0, -base);
+        ctx.fillStyle = color; ctx.fill(); ctx.restore();
+        ctx.beginPath(); ctx.arc(cx, cy, c.width*0.05, 0, 2*Math.PI);
+        ctx.fillStyle = cssVar('--c-g-hub'); ctx.fill();
+        ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = Math.round(c.width*0.027);
+        ctx.fillStyle = cssVar('--c-g-val'); ctx.font = `bold ${vf}px Courier New`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(value.toFixed(1), cx, cy + c.width*0.045); ctx.restore();
+    }
+
+    function resizeGauges() {
+        const g = document.getElementById('gauges');
+        if (!g) return;
+        const sz = Math.max(50, Math.min(
+            Math.floor((g.offsetWidth - 16) / 3 * 0.92),
+            Math.floor(g.offsetHeight * 0.80),
+            160
+        ));
+        ['gauge-vitesse','gauge-profondeur','gauge-batterie'].forEach(id => {
+            const c = document.getElementById(id);
+            if (c) { c.width = sz; c.height = sz; }
+        });
+    }
+
+    // ── Horloge ──
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock').textContent =
+            String(now.getHours()).padStart(2,'0') + ':' +
+            String(now.getMinutes()).padStart(2,'0') + ':' +
+            String(now.getSeconds()).padStart(2,'0');
+    }
+    setInterval(updateClock, 1000); updateClock();
+
+    // ── Couleur batterie ──
+    function batteryColor(v) {
+        if (v >= 12.6) return '#38b000';
+        if (v >= 12.0) return '#f4a100';
+        return '#e63946';
+    }
+
+    // ── Thème ──
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'day' ? 'night' : 'day';
+        document.documentElement.setAttribute('data-theme', next === 'day' ? 'day' : '');
+        localStorage.setItem('theme', next);
+        // Mise à jour tuile carte
+        map.removeLayer(_baseTile);
+        _baseTile = L.tileLayer(next === 'day'
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        ).addTo(map);
+    }
+    (function initTheme() {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'day') document.documentElement.setAttribute('data-theme', 'day');
+    })();
+
+    // ── Contrôles relais ──
+    async function toggleRelay(device) {
+        const data = await fetch('/api/status').then(r => r.json()).catch(() => null);
+        if (!data) return;
+        const on = device === 'pompe_de_cale' ? !data.pompe_de_cale : !data.lumieres_sous_marines;
+        await fetch(`/api/switch/${device}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({on}) }).catch(() => {});
+    }
+
+    async function resetTrip() {
+        if (!confirm('Remettre le trip à zéro ?')) return;
+        await fetch('/api/trip/reset', { method: 'POST' }).catch(() => {});
+    }
+
+    // ── Refresh données (1s) ──
+    async function refreshData() {
+        try {
+            const data = await fetch('/api/status').then(r => r.json());
+            drawGauge('gauge-vitesse',    data.vitesse * 1.852, 0,  50, '#ff4500');
+            drawGauge('gauge-profondeur', data.profondeur,      0,  10, '#00bfff');
+            drawGauge('gauge-batterie',   data.batterie,        10, 15, batteryColor(data.batterie));
+
+            const gps = document.getElementById('gps-indicator');
+            if (data.gps_fix) { gps.textContent = '🛰 GPS FIX'; gps.className = 'fix'; }
+            else              { gps.textContent = '🛰 NO FIX';  gps.className = 'nofix'; }
+
+            if (data.lat && data.lon) {
+                const pos = [data.lat, data.lon];
+                lastPos = pos;
+                boatMarker.setLatLng(pos);
+                if (followBoat) map.setView(pos, map.getZoom(), { animate: false });
+            }
+
+            if (data.trip) {
+                document.getElementById('odo-km').textContent    = data.trip.km.toFixed(2) + ' km';
+                document.getElementById('odo-nm').textContent    = data.trip.nm.toFixed(2) + ' nm';
+                const s = data.trip.secondes;
+                document.getElementById('odo-temps').textContent =
+                    Math.floor(s/3600) + 'h ' + String(Math.floor((s%3600)/60)).padStart(2,'0') + 'm';
+            }
+
+            const bp = document.getElementById('btn-pump');
+            if (data.pompe_de_cale) { bp.textContent = `💧 POMPE : ${data.pompe_timer}s`; bp.classList.add('active'); }
+            else                    { bp.textContent = '💧 POMPE CALE'; bp.classList.remove('active'); }
+
+            const bu = document.getElementById('btn-underwater');
+            if (data.lumieres_sous_marines) { bu.textContent = '🌊 FEUX : ON'; bu.classList.add('active'); }
+            else                            { bu.textContent = '🌊 FEUX SOUS-MARINS'; bu.classList.remove('active'); }
+
+        } catch(e) {}
+    }
+
+    async function refreshTrail() {
+        try {
+            const trail = await fetch('/api/trail').then(r => r.json());
+            trailLine.setLatLngs(trail);
+        } catch(e) {}
+    }
+
+    // ── Init ──
+    resizeGauges();
+    drawGauge('gauge-vitesse', 0, 0, 50, '#ff4500');
+    drawGauge('gauge-profondeur', 0, 0, 10, '#00bfff');
+    drawGauge('gauge-batterie', 12.0, 10, 15, '#38b000');
+
+    window.addEventListener('resize', () => {
+        resizeGauges();
+        map.invalidateSize();
+        refreshData();
+    });
+
+    setInterval(refreshData, 1000);
+    setInterval(refreshTrail, 5000);
+    refreshData();
+    refreshTrail();
+</script>
+</body>
+</html>

@@ -677,10 +677,15 @@ def spotify_action(action: str, playlist_id: str = None):
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    # Chemin absolu basé sur l'emplacement du script : la page racine se
-    # charge quel que soit le répertoire de lancement (sinon GET / renvoie
-    # un 500 si l'app n'est pas lancée depuis le dossier du repo).
     content = (Path(__file__).parent / "templates" / "index.html").read_text()
+    return HTMLResponse(content=content, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache"
+    })
+
+@app.get("/android", response_class=HTMLResponse)
+def read_android():
+    content = (Path(__file__).parent / "templates" / "android.html").read_text()
     return HTMLResponse(content=content, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache"
