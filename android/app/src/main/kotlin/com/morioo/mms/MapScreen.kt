@@ -3,13 +3,9 @@ package com.morioo.mms
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
-import androidx.car.app.model.CarColor
 import androidx.car.app.model.ItemList
-import androidx.car.app.model.LatLng
 import androidx.car.app.model.MessageTemplate
-import androidx.car.app.model.Place
 import androidx.car.app.model.PlaceListMapTemplate
-import androidx.car.app.model.PlaceMarker
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.lifecycle.lifecycleScope
@@ -17,8 +13,6 @@ import kotlinx.coroutines.*
 
 class MapScreen(carContext: CarContext) : Screen(carContext) {
 
-    private var boatLat    = 50.4901
-    private var boatLon    = 5.1002
     private var gpsFix     = false
     private var vitesse    = 0.0
     private var profondeur = 0.0
@@ -33,8 +27,6 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
             while (true) {
                 val d = withContext(Dispatchers.IO) { ApiClient.getStatus() }
                 if (d != null) {
-                    boatLat    = d.lat
-                    boatLon    = d.lon
                     gpsFix     = d.gpsFix
                     vitesse    = d.vitesseKmh
                     profondeur = d.profondeur
@@ -53,7 +45,7 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
     override fun onGetTemplate(): Template = try {
         buildTemplate()
     } catch (e: Exception) {
-        MessageTemplate.Builder("Erreur carte : ${e.message}")
+        MessageTemplate.Builder("Erreur : ${e.message}")
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
             .build()
@@ -66,32 +58,22 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
             batterie >= 12.0 -> "🪫"
             else -> "⚠️"
         }
-
-        // Marqueur bateau sur la carte système
-        val boatPlace = Place.Builder(LatLng.create(boatLat, boatLon))
-            .setMarker(PlaceMarker.Builder().setColor(CarColor.RED).build())
-            .build()
-
         val pompeLabel = if (pompeDeCale) "💧 POMPE : ON (${pompeTimer}s)" else "💧 Pompe de cale : OFF"
         val feuxLabel  = if (lumieresSousMarine) "🌊 Feux : ON" else "🌊 Feux sous-marins : OFF"
 
         val items = ItemList.Builder()
-            // Jauges principales
             .addItem(Row.Builder()
                 .setTitle("⚡ %.1f km/h  •  🌊 %.1f m".format(vitesse, profondeur))
                 .addText("$batIcon %.1f V  •  $gpsStr  •  %.1f km".format(batterie, tripKm))
                 .build())
-            // Pompe de cale
             .addItem(Row.Builder()
                 .setTitle(pompeLabel)
                 .setOnClickListener { triggerPompe() }
                 .build())
-            // Feux sous-marins
             .addItem(Row.Builder()
                 .setTitle(feuxLabel)
                 .setOnClickListener { triggerFeux() }
                 .build())
-            // Navigation vers jauges détaillées
             .addItem(Row.Builder()
                 .setTitle("📋 Jauges détaillées")
                 .setOnClickListener { screenManager.push(DashboardScreen(carContext)) }
@@ -101,8 +83,7 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
         return PlaceListMapTemplate.Builder()
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
-            .setAnchor(boatPlace)
-            .setCurrentLocationEnabled(false)
+            .setCurrentLocationEnabled(true)
             .setItemList(items)
             .build()
     }
