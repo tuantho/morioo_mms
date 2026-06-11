@@ -242,10 +242,10 @@
             .btn-pl    { font-size: 0.85em; }
         }
 
-        /* ── AUTORADIO Ainavi K40 (ratio ≥ 2.5:1, ex. 1280×480 ou 640×240 au DPR 2)
+        /* ── AUTORADIO / PHONE PAYSAGE (ratio ≥ 2:1, ex. Ainavi K40 1280×480, Pixel 8 915×412)
            Layout 3 colonnes : [jauges+contrôles | carte | spotify]
            display:contents sur .main-container pour le dissoudre dans le grid body. */
-        @media (min-aspect-ratio: 5/2) and (min-width: 400px) {
+        @media (min-aspect-ratio: 2/1) and (min-width: 400px) {
             body {
                 display: grid;
                 grid-template-rows: auto 1fr;
