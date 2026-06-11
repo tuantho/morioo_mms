@@ -55,6 +55,8 @@ class MainActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     swipeRefresh.isRefreshing = false
+                    // Force le recalcul du layout position:fixed après chargement
+                    view.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null)
                     Log.d("Morioo", "Page chargée : $url")
                 }
                 override fun onReceivedError(
