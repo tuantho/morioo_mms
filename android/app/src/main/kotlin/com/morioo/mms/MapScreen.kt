@@ -88,7 +88,7 @@ class MapScreen(carContext: CarContext) : Screen(carContext) {
         return PlaceListMapTemplate.Builder()
             .setTitle("Boesch 510")
             .setHeaderAction(Action.APP_ICON)
-            .setCurrentLocationEnabled(true)
+            .setCurrentLocationEnabled(false)
             .setItemList(items)
             .build()
     }
